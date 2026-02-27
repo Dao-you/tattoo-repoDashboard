@@ -105,7 +105,18 @@ function formatDate(value: string): string {
 </script>
 
 <style scoped>
-.pr-card { background:#0f172a; border:1px solid #253560; border-radius:12px; padding:.75rem; display:flex; flex-direction:column; gap:.5rem; box-shadow:0 8px 18px rgba(0,0,0,.24); }
+.pr-card {
+  background:#0f172a;
+  border:1px solid #253560;
+  border-radius:12px;
+  padding:.75rem;
+  display:flex;
+  flex-direction:column;
+  gap:.5rem;
+  min-height: 220px;
+  min-width: 240px;
+  box-shadow:0 8px 18px rgba(0,0,0,.24);
+}
 .top { display:flex; justify-content:space-between; align-items:center; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
 .build { font-weight:700; color:#fde68a; background:#422006; padding:.1rem .45rem; border-radius:999px; font-size:.74rem; }
@@ -201,5 +212,11 @@ function formatDate(value: string): string {
 @keyframes pop {
   from { opacity: 0; transform: scale(.5) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .pr-card {
+    min-width: 0;
+  }
 }
 </style>
