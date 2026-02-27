@@ -32,14 +32,57 @@ const API_BASE = 'https://api.github.com';
 const OWNER = 'NTUT-NPC';
 const REPO = 'tattoo';
 const MAX_PRS = 12;
+const TOKEN_COOKIE_NAME = 'github_api_token';
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+function getTokenFromCookie(): string {
+  if (typeof document === 'undefined') return '';
+
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${TOKEN_COOKIE_NAME}=`));
+
+  if (!cookie) return '';
+
+  const rawValue = cookie.slice(TOKEN_COOKIE_NAME.length + 1);
+
+  try {
+    return decodeURIComponent(rawValue);
+  } catch {
+    return rawValue;
+  }
+}
+
+export function getSavedGithubToken(): string {
+  return getTokenFromCookie();
+}
+
+export function saveGithubToken(token: string) {
+  if (typeof document === 'undefined') return;
+
+  const normalizedToken = token.trim();
+
+  if (!normalizedToken) {
+    document.cookie = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+    return;
+  }
+
+  document.cookie = `${TOKEN_COOKIE_NAME}=${encodeURIComponent(normalizedToken)}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
+}
 
 async function request(path: string) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
+  const token = getTokenFromCookie();
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, { headers });
 
   if (!response.ok) {
     throw new Error(`GitHub API error ${response.status}: ${path}`);

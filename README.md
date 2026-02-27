@@ -50,6 +50,63 @@ npm install
 npm run dev
 ```
 
+
+## 設定個人 GitHub API Token（建議）
+
+為了降低 GitHub API rate limit（匿名約 60 req/hr / IP），現在 dashboard 支援在前端輸入 token，並儲存在瀏覽器 cookie（`github_api_token`）供後續請求使用。
+
+### 在畫面上設定 token
+
+1. 開啟 dashboard。
+2. 在「GitHub API Token（可選，提升 rate limit）」欄位貼上 token。
+3. 點擊「儲存 Token」。
+4. 成功後，後續 API 請求會自動帶上 `Authorization: Bearer <token>`。
+5. 若要回到匿名模式，可按「清除」。
+
+> 安全提醒：
+> - token 儲存在瀏覽器 cookie（非 HttpOnly），只應在你信任的裝置與瀏覽器上使用。
+> - 建議建立「只讀、最小權限」token，不要使用高權限 token。
+
+### 如何取得 GitHub API Token
+
+你可以用 Fine-grained personal access token（推薦）或 Classic token。
+
+#### 方案 A：Fine-grained token（推薦）
+
+1. 登入 GitHub，進入 `Settings` → `Developer settings` → `Personal access tokens` → `Fine-grained tokens`。
+2. 點「Generate new token」。
+3. 參考下列建議設定：
+   - **Resource owner**：你的帳號或所屬組織。
+   - **Repository access**：
+     - 若只查 `NTUT-NPC/tattoo`，可選 `Only select repositories` 並勾選該 repo。
+   - **Permissions**（讀取 dashboard 所需最小範圍）：
+     - Pull requests: **Read-only**
+     - Issues: **Read-only**
+     - Commit statuses: **Read-only**
+     - Actions/Checks（若介面有提供 Checks 權限）：**Read-only**
+4. 設定到期日（建議短效，例如 30~90 天）。
+5. 建立後立即複製 token（離開頁面後通常無法再完整查看）。
+
+#### 方案 B：Classic token
+
+1. 進入 `Settings` → `Developer settings` → `Personal access tokens` → `Tokens (classic)`。
+2. 點「Generate new token (classic)」。
+3. 一般只需要勾選 `public_repo`（若僅查公開倉庫資料）。
+4. 設定到期日並建立 token。
+5. 複製 token 後貼回 dashboard。
+
+### 驗證 token 是否可用
+
+可先用以下指令測試（把 `<TOKEN>` 換成你的值）：
+
+```bash
+curl -H "Authorization: Bearer <TOKEN>" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/rate_limit
+```
+
+若回傳中的 `resources.core.remaining` 顯著高於匿名請求，代表 token 生效。
+
 ## GitHub Pages 部署
 
 已提供 `.github/workflows/deploy-pages.yml`：
