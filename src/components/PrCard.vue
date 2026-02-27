@@ -1,7 +1,10 @@
 <template>
   <article class="pr-card" :class="{ cinematic: cinematic }">
     <header class="top">
-      <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
+      <div class="pr-head">
+        <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
+        <span v-if="statusLabel" class="review-status" :class="statusClass">{{ statusLabel }}</span>
+      </div>
       <span class="build" :class="{ missing: !pr.buildNumber }">CI #{{ pr.buildNumber ?? 'N/A' }}</span>
     </header>
 
@@ -78,13 +81,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed, toRefs } from 'vue';
 import type { PullRequestCard } from '../services/githubApi';
 import { truncate } from '../utils/parsers.ts';
 import CiStatusBadges from './CiStatusBadges.vue';
 
 type ShowcaseEffect = 'new_pr' | 'ci_complete' | 'merged';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     pr: PullRequestCard;
     cinematic?: boolean;
@@ -98,10 +102,38 @@ withDefaults(
   },
 );
 
+const { pr } = toRefs(props);
+
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '未知時間' : date.toLocaleString();
 }
+
+const statusLabelMap = {
+  draft: 'draft',
+  'pending review': 'pending review',
+  'ci failed': 'ci failed',
+  approved: 'approved',
+} as const;
+
+const statusClassMap = {
+  draft: 'is-draft',
+  'pending review': 'is-pending-review',
+  'ci failed': 'is-ci-failed',
+  approved: 'is-approved',
+} as const;
+
+const statusLabel = computed(() => {
+  const status = pr.value.reviewStatus;
+  if (!status) return '';
+  return statusLabelMap[status] ?? '';
+});
+
+const statusClass = computed(() => {
+  const status = pr.value.reviewStatus;
+  if (!status) return '';
+  return statusClassMap[status] ?? '';
+});
 </script>
 
 <style scoped>
@@ -118,7 +150,21 @@ function formatDate(value: string): string {
   box-shadow:0 8px 18px rgba(0,0,0,.24);
 }
 .top { display:flex; justify-content:space-between; align-items:center; }
+.pr-head { display: flex; align-items: center; gap: .4rem; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
+.review-status {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border-radius: 999px;
+  padding: .08rem .45rem;
+  border: 1px solid transparent;
+}
+.review-status.is-draft { color: #d1d5db; background: #374151; border-color: #4b5563; }
+.review-status.is-pending-review { color: #fde68a; background: #422006; border-color: #854d0e; }
+.review-status.is-ci-failed { color: #fecaca; background: #450a0a; border-color: #7f1d1d; }
+.review-status.is-approved { color: #bbf7d0; background: #052e16; border-color: #166534; }
 .build { font-weight:700; color:#fde68a; background:#422006; padding:.1rem .45rem; border-radius:999px; font-size:.74rem; }
 .build.missing { color:#cbd5e1; background:#334155; }
 .title { margin:0; font-size:.95rem; line-height:1.25; color:#f8fafc; }
