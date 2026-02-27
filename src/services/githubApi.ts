@@ -32,14 +32,63 @@ const API_BASE = 'https://api.github.com';
 const OWNER = 'NTUT-NPC';
 const REPO = 'tattoo';
 const MAX_PRS = 12;
+const TOKEN_STORAGE_KEY = 'github_api_token';
+
+function getTokenFromStorage(): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY)?.trim() ?? '';
+}
+
+export function hasSavedGithubToken(): boolean {
+  return Boolean(getTokenFromStorage());
+}
+
+export function saveGithubToken(token: string) {
+  if (typeof window === 'undefined') return;
+
+  const normalizedToken = token.trim();
+
+  if (!normalizedToken) {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(TOKEN_STORAGE_KEY, normalizedToken);
+}
+
+function isLikelyGithubToken(value: string): boolean {
+  return /^(gh[pousr]_|github_pat_).{10,}$/.test(value);
+}
+
+export function validateGithubToken(token: string): { valid: boolean; message: string } {
+  const normalizedToken = token.trim();
+
+  if (!normalizedToken) {
+    return { valid: false, message: 'Token 不能為空。' };
+  }
+
+  if (!isLikelyGithubToken(normalizedToken)) {
+    return {
+      valid: false,
+      message: 'Token 格式看起來不正確，請確認是否完整貼上 GitHub Personal Access Token。',
+    };
+  }
+
+  return { valid: true, message: '格式檢查通過。' };
+}
 
 async function request(path: string) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
+  const token = getTokenFromStorage();
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, { headers });
 
   if (!response.ok) {
     throw new Error(`GitHub API error ${response.status}: ${path}`);
