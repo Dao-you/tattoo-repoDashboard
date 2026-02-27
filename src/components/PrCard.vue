@@ -26,7 +26,7 @@
       <CiStatusBadges :items="pr.ciStates" />
     </section>
 
-    <details class="detail-panel">
+    <details class="detail-panel" :open="cinematic">
       <summary>展開細節</summary>
       <div class="detail-content">
         <a
@@ -124,7 +124,8 @@ function formatDate(value: string): string {
 .detail-link { color:#e2e8f0; text-decoration:none; font-size:.78rem; }
 
 .pr-card.cinematic {
-  min-height: min(80vh, 680px);
+  height: min(80vh, 680px);
+  max-height: min(80vh, 680px);
   justify-content: flex-start;
   border-color: #60a5fa;
   box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.5), 0 20px 45px rgba(15, 23, 42, 0.7);
@@ -132,8 +133,18 @@ function formatDate(value: string): string {
   font-size: clamp(1rem, 0.8rem + 0.7vw, 1.45rem);
   padding: clamp(1rem, 1.2vw, 1.6rem);
   gap: clamp(.75rem, 1.1vw, 1.2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
+.pr-card.cinematic .top,
+.pr-card.cinematic .title,
+.pr-card.cinematic .summary,
+.pr-card.cinematic .bottom,
+.pr-card.cinematic .detail-panel,
+.pr-card.cinematic .cinematic-overlay {
+  flex-shrink: 0;
+}
 
 .pr-card.cinematic .pr-no { font-size: clamp(1.2rem, 1rem + 1.4vw, 2rem); }
 .pr-card.cinematic .build { font-size: clamp(.92rem, .72rem + .7vw, 1.25rem); padding: .22em .7em; }
@@ -143,6 +154,11 @@ function formatDate(value: string): string {
 .pr-card.cinematic .avatar { width: clamp(20px, 1.4em, 28px); height: clamp(20px, 1.4em, 28px); }
 .pr-card.cinematic .detail-panel summary { font-size: clamp(.9rem, .72rem + .5vw, 1.15rem); }
 .pr-card.cinematic .detail-link { font-size: clamp(.92rem, .74rem + .5vw, 1.14rem); }
+.pr-card.cinematic .detail-content {
+  max-height: clamp(120px, 22vh, 280px);
+  overflow-y: auto;
+  padding-right: .3rem;
+}
 
 .cinematic-overlay {
   margin-top: auto;
