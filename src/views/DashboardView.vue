@@ -2,8 +2,11 @@
   <main class="dashboard">
     <header class="header">
       <div>
-        <h1>Tattoo PR Dashboard</h1>
-        <p>Open PR snapshots from <code>NTUT-NPC/tattoo</code> · refresh every 30s</p>
+        <h1>
+          Tattoo PR Dashboard
+          <span class="refresh-countdown">refresh 倒數 {{ refreshCountdownSec }}s</span>
+        </h1>
+        <p>Open PR snapshots from <code>NTUT-NPC/tattoo</code> · refresh every {{ refreshIntervalSec }}s</p>
       </div>
       <div class="meta">
         <button
@@ -23,6 +26,20 @@
     </header>
 
     <section v-if="showTokenPanel" class="token-panel">
+      <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
+      <div class="token-controls refresh-controls">
+        <input
+          id="refresh-interval"
+          v-model.number="refreshIntervalInput"
+          type="number"
+          :min="MIN_REFRESH_INTERVAL_SEC"
+          :max="MAX_REFRESH_INTERVAL_SEC"
+          step="1"
+        />
+        <button type="button" @click="applyRefreshInterval">套用更新頻率</button>
+      </div>
+      <p class="token-hint">可設定 {{ MIN_REFRESH_INTERVAL_SEC }} - {{ MAX_REFRESH_INTERVAL_SEC }} 秒。</p>
+
       <label for="github-token" class="token-label">GitHub API Token（選填）</label>
       <div class="token-controls">
         <input
@@ -79,6 +96,10 @@ import {
 } from '../services/githubApi.ts';
 
 const REFRESH_INTERVAL_MS = 30_000;
+const DEFAULT_REFRESH_INTERVAL_SEC = REFRESH_INTERVAL_MS / 1000;
+const MIN_REFRESH_INTERVAL_SEC = 5;
+const MAX_REFRESH_INTERVAL_SEC = 300;
+const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
 const MAX_SHOWCASE_QUEUE = 6;
 const MAX_REFRESH_EVENTS = 5;
 const CONFETTI_COUNT = 18;
@@ -91,7 +112,12 @@ const showTokenPanel = ref(false);
 const hasTokenSaved = ref(false);
 const tokenInput = ref('');
 const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
+const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 let timer: ReturnType<typeof setInterval> | null = null;
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+let nextRefreshAt: number | null = null;
 
 let refreshInFlight: Promise<void> | null = null;
 let refreshQueued = false;
@@ -112,6 +138,42 @@ let showcasePlaying = false;
 const lastUpdatedText = computed(() =>
   lastUpdatedAt.value ? `最後更新：${lastUpdatedAt.value.toLocaleString()}` : '尚未更新',
 );
+
+function readRefreshIntervalFromStorage() {
+  const raw = window.localStorage.getItem(REFRESH_INTERVAL_STORAGE_KEY);
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) return DEFAULT_REFRESH_INTERVAL_SEC;
+  if (parsed < MIN_REFRESH_INTERVAL_SEC || parsed > MAX_REFRESH_INTERVAL_SEC) {
+    return DEFAULT_REFRESH_INTERVAL_SEC;
+  }
+
+  return parsed;
+}
+
+function scheduleNextRefreshCountdown() {
+  nextRefreshAt = Date.now() + refreshIntervalSec.value * 1000;
+  refreshCountdownSec.value = refreshIntervalSec.value;
+}
+
+function updateRefreshCountdown() {
+  if (!nextRefreshAt) {
+    refreshCountdownSec.value = refreshIntervalSec.value;
+    return;
+  }
+
+  const diffSec = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+  refreshCountdownSec.value = diffSec;
+}
+
+function restartRefreshTimer() {
+  if (timer) clearInterval(timer);
+
+  scheduleNextRefreshCountdown();
+  timer = setInterval(async () => {
+    await refresh();
+    scheduleNextRefreshCountdown();
+  }, refreshIntervalSec.value * 1000);
+}
 
 const confettiStyles = Array.from({ length: CONFETTI_COUNT }, (_, index) => {
   const left = (index / CONFETTI_COUNT) * 100;
@@ -325,25 +387,49 @@ async function clearToken() {
   await refresh();
 }
 
+function applyRefreshInterval() {
+  if (!Number.isInteger(refreshIntervalInput.value)) {
+    tokenMessage.value = '更新頻率需為整數秒。';
+    return;
+  }
+
+  if (refreshIntervalInput.value < MIN_REFRESH_INTERVAL_SEC || refreshIntervalInput.value > MAX_REFRESH_INTERVAL_SEC) {
+    tokenMessage.value = `更新頻率需介於 ${MIN_REFRESH_INTERVAL_SEC}-${MAX_REFRESH_INTERVAL_SEC} 秒。`;
+    return;
+  }
+
+  refreshIntervalSec.value = refreshIntervalInput.value;
+  window.localStorage.setItem(REFRESH_INTERVAL_STORAGE_KEY, String(refreshIntervalSec.value));
+  restartRefreshTimer();
+  tokenMessage.value = `已套用更新頻率：每 ${refreshIntervalSec.value} 秒更新一次。`;
+}
+
 onMounted(async () => {
+  refreshIntervalSec.value = readRefreshIntervalFromStorage();
+  refreshIntervalInput.value = refreshIntervalSec.value;
+
   hasTokenSaved.value = hasSavedGithubToken();
   tokenMessage.value = hasTokenSaved.value
     ? '偵測到已儲存 token（內容隱藏）。'
     : '目前未設定 token，將使用匿名請求。';
 
   await refresh();
-  timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
+  restartRefreshTimer();
+  countdownTimer = setInterval(updateRefreshCountdown, 1000);
+  updateRefreshCountdown();
 });
 
 onUnmounted(() => {
   if (timer) clearInterval(timer);
+  if (countdownTimer) clearInterval(countdownTimer);
 });
 </script>
 
 <style scoped>
 .dashboard { max-width: 1200px; margin: 0 auto; padding: .75rem; }
 .header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; }
-.header h1 { margin:0; color:#f8fafc; }
+.header h1 { margin:0; color:#f8fafc; display: flex; align-items: baseline; gap: .55rem; flex-wrap: wrap; }
+.refresh-countdown { font-size: .95rem; color: #93c5fd; font-weight: 600; }
 .header p { margin:.3rem 0 0; color:#94a3b8; }
 code { color:#93c5fd; }
 .meta { display:flex; flex-direction:column; align-items:flex-end; gap:.35rem; position: relative; }
@@ -358,6 +444,7 @@ code { color:#93c5fd; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
 .token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
+.refresh-controls input { max-width: 190px; min-width: 0; }
 .token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
 .token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
 .token-hint { margin: .45rem 0 0; font-size: .8rem; color: #cbd5e1; }
