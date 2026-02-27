@@ -32,47 +32,53 @@ const API_BASE = 'https://api.github.com';
 const OWNER = 'NTUT-NPC';
 const REPO = 'tattoo';
 const MAX_PRS = 12;
-const TOKEN_COOKIE_NAME = 'github_api_token';
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const TOKEN_STORAGE_KEY = 'github_api_token';
 
-function getTokenFromCookie(): string {
-  if (typeof document === 'undefined') return '';
-
-  const cookie = document.cookie
-    .split(';')
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${TOKEN_COOKIE_NAME}=`));
-
-  if (!cookie) return '';
-
-  const rawValue = cookie.slice(TOKEN_COOKIE_NAME.length + 1);
-
-  try {
-    return decodeURIComponent(rawValue);
-  } catch {
-    return rawValue;
-  }
+function getTokenFromStorage(): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(TOKEN_STORAGE_KEY)?.trim() ?? '';
 }
 
-export function getSavedGithubToken(): string {
-  return getTokenFromCookie();
+export function hasSavedGithubToken(): boolean {
+  return Boolean(getTokenFromStorage());
 }
 
 export function saveGithubToken(token: string) {
-  if (typeof document === 'undefined') return;
+  if (typeof window === 'undefined') return;
 
   const normalizedToken = token.trim();
 
   if (!normalizedToken) {
-    document.cookie = `${TOKEN_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     return;
   }
 
-  document.cookie = `${TOKEN_COOKIE_NAME}=${encodeURIComponent(normalizedToken)}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
+  window.localStorage.setItem(TOKEN_STORAGE_KEY, normalizedToken);
+}
+
+function isLikelyGithubToken(value: string): boolean {
+  return /^(gh[pousr]_|github_pat_).{10,}$/.test(value);
+}
+
+export function validateGithubToken(token: string): { valid: boolean; message: string } {
+  const normalizedToken = token.trim();
+
+  if (!normalizedToken) {
+    return { valid: false, message: 'Token 不能為空。' };
+  }
+
+  if (!isLikelyGithubToken(normalizedToken)) {
+    return {
+      valid: false,
+      message: 'Token 格式看起來不正確，請確認是否完整貼上 GitHub Personal Access Token。',
+    };
+  }
+
+  return { valid: true, message: '格式檢查通過。' };
 }
 
 async function request(path: string) {
-  const token = getTokenFromCookie();
+  const token = getTokenFromStorage();
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',

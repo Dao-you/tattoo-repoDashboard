@@ -53,19 +53,21 @@ npm run dev
 
 ## 設定個人 GitHub API Token（建議）
 
-為了降低 GitHub API rate limit（匿名約 60 req/hr / IP），現在 dashboard 支援在前端輸入 token，並儲存在瀏覽器 cookie（`github_api_token`）供後續請求使用。
+為了降低 GitHub API rate limit（匿名約 60 req/hr / IP），現在 dashboard 支援在前端輸入 token，並儲存在瀏覽器 localStorage（`github_api_token`）供後續請求使用。
 
 ### 在畫面上設定 token
 
 1. 開啟 dashboard。
-2. 在「GitHub API Token（可選，提升 rate limit）」欄位貼上 token。
-3. 點擊「儲存 Token」。
+2. 點擊右上角齒輪（⚙）展開設定面板（平常收合，不佔空間）。
+3. 貼上 token 並點擊「儲存 Token」。
 4. 成功後，後續 API 請求會自動帶上 `Authorization: Bearer <token>`。
 5. 若要回到匿名模式，可按「清除」。
 
 > 安全提醒：
-> - token 儲存在瀏覽器 cookie（非 HttpOnly），只應在你信任的裝置與瀏覽器上使用。
-> - 建議建立「只讀、最小權限」token，不要使用高權限 token。
+> - token 僅儲存在 localStorage，不會像 cookie 一樣自動隨 HTTP 請求送出。
+> - localStorage 仍屬前端可讀資料：請只在受信任裝置使用，並避免安裝不明來源擴充套件。
+> - 建議建立「只讀、最小權限、短效」token，不要使用高權限長效 token。
+> - 介面不會回填已儲存 token 原文；若要更新請重新貼上。
 
 ### 如何取得 GitHub API Token
 
