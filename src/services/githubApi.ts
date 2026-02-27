@@ -27,6 +27,7 @@ export type PullRequestCard = {
   buildNumber: string | null;
   ciStates: Array<{ name: string; status: string; conclusion: string | null; url: string | null }>;
   reviewStatus: 'draft' | 'pending review' | 'ci failed' | 'approved' | null;
+  approvedCount: number;
 };
 
 const API_BASE = 'https://api.github.com';
@@ -164,6 +165,18 @@ function inferReviewStatus(params: {
   return 'pending review';
 }
 
+function getApprovedCount(reviews: any[]): number {
+  const latestReviewsByAuthor = new Map<string, string>();
+  reviews.forEach((review) => {
+    const login = review.user?.login;
+    if (!login) return;
+
+    latestReviewsByAuthor.set(login, review.state ?? '');
+  });
+
+  return [...latestReviewsByAuthor.values()].filter((state) => state === 'APPROVED').length;
+}
+
 export async function fetchPrCards(): Promise<PullRequestCard[]> {
   const pulls = await request(
     `/repos/${OWNER}/${REPO}/pulls?state=open&sort=updated&direction=desc&per_page=${MAX_PRS}`,
@@ -232,6 +245,7 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
         buildNumber,
         ciStates,
         reviewStatus: inferReviewStatus({ draft: Boolean(pr.draft), ciStates, reviews }),
+        approvedCount: getApprovedCount(reviews),
       } as PullRequestCard;
     }),
   );
