@@ -153,7 +153,6 @@ const statusClass = computed(() => {
 .review-status {
   font-size: .68rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: .03em;
   border-radius: 999px;
   padding: .08rem .45rem;
