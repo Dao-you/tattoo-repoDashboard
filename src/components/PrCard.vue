@@ -87,6 +87,7 @@
 <script setup lang="ts">
 import { computed, toRefs } from 'vue';
 import type { PullRequestCard } from '../services/githubApi';
+import { truncate } from '../utils/parsers.ts';
 import CiStatusBadges from './CiStatusBadges.vue';
 
 type ShowcaseEffect = 'new_pr' | 'ci_complete' | 'merged';
