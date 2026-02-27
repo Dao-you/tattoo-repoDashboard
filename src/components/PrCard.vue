@@ -1,5 +1,5 @@
 <template>
-  <article class="pr-card">
+  <article class="pr-card" :class="{ cinematic: cinematic }">
     <header class="top">
       <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
       <span class="build" :class="{ missing: !pr.buildNumber }">CI #{{ pr.buildNumber ?? 'N/A' }}</span>
@@ -51,6 +51,29 @@
         </a>
       </div>
     </details>
+
+    <div v-if="cinematic" class="cinematic-overlay" aria-live="polite">
+      <p v-if="effect === 'new_pr'" class="effect-title">🚀 New PR arrived</p>
+      <p v-else-if="effect === 'ci_complete'" class="effect-title">CI 全部完成</p>
+      <p v-else-if="effect === 'merged'" class="effect-title">🔀 Merged to mainline</p>
+
+      <div v-if="effect === 'ci_complete'" class="ci-result-list">
+        <span
+          v-for="item in ciSummary"
+          :key="`${item.name}-${item.result}`"
+          class="ci-result"
+          :class="item.result"
+        >
+          {{ item.result === 'success' ? '✅' : '❌' }}
+        </span>
+      </div>
+
+      <div v-else-if="effect === 'merged'" class="merge-line" aria-hidden="true">
+        <span>⎇</span>
+        <span>⇢</span>
+        <span>main</span>
+      </div>
+    </div>
   </article>
 </template>
 
@@ -59,7 +82,21 @@ import type { PullRequestCard } from '../services/githubApi';
 import { truncate } from '../utils/parsers.ts';
 import CiStatusBadges from './CiStatusBadges.vue';
 
-defineProps<{ pr: PullRequestCard }>();
+type ShowcaseEffect = 'new_pr' | 'ci_complete' | 'merged';
+
+withDefaults(
+  defineProps<{
+    pr: PullRequestCard;
+    cinematic?: boolean;
+    effect?: ShowcaseEffect;
+    ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
+  }>(),
+  {
+    cinematic: false,
+    effect: 'new_pr',
+    ciSummary: () => [],
+  },
+);
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -85,4 +122,68 @@ function formatDate(value: string): string {
 .detail-panel summary { cursor:pointer; font-size:.74rem; color:#93c5fd; }
 .detail-content { display:flex; flex-direction:column; gap:.3rem; margin-top:.4rem; }
 .detail-link { color:#e2e8f0; text-decoration:none; font-size:.78rem; }
+
+.pr-card.cinematic {
+  min-height: min(80vh, 680px);
+  justify-content: flex-start;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.5), 0 20px 45px rgba(15, 23, 42, 0.7);
+  container-type: inline-size;
+  font-size: clamp(1rem, 0.8rem + 0.7vw, 1.45rem);
+  padding: clamp(1rem, 1.2vw, 1.6rem);
+  gap: clamp(.75rem, 1.1vw, 1.2rem);
+}
+
+
+.pr-card.cinematic .pr-no { font-size: clamp(1.2rem, 1rem + 1.4vw, 2rem); }
+.pr-card.cinematic .build { font-size: clamp(.92rem, .72rem + .7vw, 1.25rem); padding: .22em .7em; }
+.pr-card.cinematic .title { font-size: clamp(1.25rem, .95rem + 1.7vw, 2.35rem); line-height: 1.2; }
+.pr-card.cinematic .line-item { font-size: clamp(.9rem, .72rem + .6vw, 1.2rem); padding: .2em .72em; }
+.pr-card.cinematic .type-icon { font-size: 1em; }
+.pr-card.cinematic .avatar { width: clamp(20px, 1.4em, 28px); height: clamp(20px, 1.4em, 28px); }
+.pr-card.cinematic .detail-panel summary { font-size: clamp(.9rem, .72rem + .5vw, 1.15rem); }
+.pr-card.cinematic .detail-link { font-size: clamp(.92rem, .74rem + .5vw, 1.14rem); }
+
+.cinematic-overlay {
+  margin-top: auto;
+  border-radius: 12px;
+  border: 1px solid #2b3f72;
+  background: rgba(15, 23, 42, 0.92);
+  padding: .8rem;
+  display: grid;
+  gap: .5rem;
+}
+
+.effect-title {
+  margin: 0;
+  color: #dbeafe;
+  font-weight: 700;
+  letter-spacing: .01em;
+  font-size: clamp(1.15rem, 1rem + 1vw, 1.9rem);
+}
+
+.ci-result-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+.ci-result {
+  font-size: clamp(1.8rem, 1.2rem + 1.8vw, 3rem);
+  display: inline-flex;
+  animation: pop .55s ease both;
+}
+
+.ci-result.failure { filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.4)); }
+.ci-result.success { filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.4)); }
+
+.merge-line {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #a5b4fc;
+  font-size: clamp(1.15rem, 1rem + .8vw, 1.8rem);
+  font-weight: 700;
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(.5) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
 </style>

@@ -97,6 +97,14 @@ async function request(path: string) {
   return response.json();
 }
 
+export async function fetchPullRequestMergeState(number: number): Promise<{ merged: boolean; state: string }> {
+  const pr = await request(`/repos/${OWNER}/${REPO}/pulls/${number}`);
+  return {
+    merged: Boolean(pr.merged_at),
+    state: pr.state ?? 'unknown',
+  };
+}
+
 function normalizeCiStates(checkRuns: any[] = [], statuses: any[] = []) {
   const checks = checkRuns.map((run) => ({
     name: run.name,
