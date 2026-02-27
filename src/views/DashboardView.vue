@@ -11,6 +11,22 @@
       </div>
     </header>
 
+    <section class="token-panel">
+      <label for="github-token" class="token-label">GitHub API Token（可選，提升 rate limit）</label>
+      <div class="token-controls">
+        <input
+          id="github-token"
+          v-model="tokenInput"
+          type="password"
+          placeholder="ghp_... 或 github_pat_..."
+          autocomplete="off"
+        />
+        <button type="button" @click="saveToken">儲存 Token</button>
+        <button type="button" class="secondary" @click="clearToken">清除</button>
+      </div>
+      <p class="token-hint">{{ tokenMessage }}</p>
+    </section>
+
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="grid">
@@ -22,12 +38,19 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import PrCard from '../components/PrCard.vue';
-import { fetchPrCards, type PullRequestCard } from '../services/githubApi.ts';
+import {
+  fetchPrCards,
+  getSavedGithubToken,
+  saveGithubToken,
+  type PullRequestCard,
+} from '../services/githubApi.ts';
 
 const prs = ref<PullRequestCard[]>([]);
 const error = ref('');
 const isUpdating = ref(false);
 const lastUpdatedAt = ref<Date | null>(null);
+const tokenInput = ref('');
+const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const lastUpdatedText = computed(() =>
@@ -48,7 +71,28 @@ async function refresh() {
   }
 }
 
+async function saveToken() {
+  saveGithubToken(tokenInput.value);
+  tokenInput.value = getSavedGithubToken();
+  tokenMessage.value = tokenInput.value
+    ? '已儲存 token 至 cookie，後續請求會使用此 token。'
+    : 'Token 為空，已改為匿名請求。';
+  await refresh();
+}
+
+async function clearToken() {
+  tokenInput.value = '';
+  saveGithubToken('');
+  tokenMessage.value = '已清除 token，後續改為匿名請求。';
+  await refresh();
+}
+
 onMounted(async () => {
+  tokenInput.value = getSavedGithubToken();
+  tokenMessage.value = tokenInput.value
+    ? '偵測到已儲存 token，後續請求會使用此 token。'
+    : '目前未設定 token，將使用匿名請求。';
+
   await refresh();
   timer = setInterval(() => void refresh(), 30_000);
 });
@@ -69,6 +113,13 @@ code { color:#93c5fd; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
 .time { color:#cbd5e1; font-size:.82rem; }
+.token-panel { margin-bottom: .9rem; border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
+.token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
+.token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
+.token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
+.token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
+.token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+.token-hint { margin: .45rem 0 0; font-size: .8rem; color: #94a3b8; }
 .error { border:1px solid #dc2626; color:#fecaca; background:#3f1119; border-radius:10px; padding:.6rem .8rem; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.65rem; }
 
