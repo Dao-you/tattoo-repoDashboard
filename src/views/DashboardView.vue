@@ -42,21 +42,46 @@
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="grid">
-      <PrCard v-for="pr in prs" :key="pr.id" :pr="pr" />
+      <div v-for="pr in prs" :key="pr.id" class="card-slot" :data-pr-id="pr.id">
+        <PrCard :pr="pr" />
+      </div>
     </section>
+
+    <Teleport to="body">
+      <section v-if="showcase" class="showcase-mask" aria-live="polite">
+        <div class="showcase-confetti" aria-hidden="true">
+          <span v-for="item in confettiStyles" :key="item.key" class="confetti" :style="item.style" />
+        </div>
+
+        <div ref="showcaseCardRef" class="showcase-card" :class="showcasePhase">
+          <PrCard
+            :pr="showcase.pr"
+            cinematic
+            :effect="showcase.type"
+            :ci-summary="showcase.ciSummary ?? []"
+          />
+        </div>
+      </section>
+    </Teleport>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import PrCard from '../components/PrCard.vue';
 import {
   fetchPrCards,
+  fetchPullRequestMergeState,
   hasSavedGithubToken,
   saveGithubToken,
   validateGithubToken,
   type PullRequestCard,
 } from '../services/githubApi.ts';
+
+const REFRESH_INTERVAL_MS = 30_000;
+const MAX_SHOWCASE_QUEUE = 6;
+const MAX_REFRESH_EVENTS = 5;
+const CONFETTI_COUNT = 18;
 
 const prs = ref<PullRequestCard[]>([]);
 const error = ref('');
@@ -68,14 +93,187 @@ const tokenInput = ref('');
 const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 let timer: ReturnType<typeof setInterval> | null = null;
 
+let refreshInFlight: Promise<void> | null = null;
+let refreshQueued = false;
+
+type ShowcaseEvent = {
+  type: 'new_pr' | 'ci_complete' | 'merged';
+  pr: PullRequestCard;
+  ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
+  shouldReturnToCard: boolean;
+};
+
+const showcase = ref<ShowcaseEvent | null>(null);
+const showcasePhase = ref<'enter' | 'idle'>('enter');
+const showcaseCardRef = ref<HTMLElement | null>(null);
+const showcaseQueue: ShowcaseEvent[] = [];
+let showcasePlaying = false;
+
 const lastUpdatedText = computed(() =>
   lastUpdatedAt.value ? `最後更新：${lastUpdatedAt.value.toLocaleString()}` : '尚未更新',
 );
 
-async function refresh() {
+const confettiStyles = Array.from({ length: CONFETTI_COUNT }, (_, index) => {
+  const left = (index / CONFETTI_COUNT) * 100;
+  const delay = ((index % 6) * 0.1).toFixed(2);
+  const duration = (1.3 + (index % 5) * 0.18).toFixed(2);
+
+  return {
+    key: index,
+    style: {
+      left: `${left}%`,
+      animationDelay: `${delay}s`,
+      animationDuration: `${duration}s`,
+    },
+  };
+});
+
+function isPendingStatus(item: PullRequestCard['ciStates'][number]): boolean {
+  return item.status === 'in_progress' || item.status === 'queued' || item.status === 'pending';
+}
+
+function isSuccessStatus(item: PullRequestCard['ciStates'][number]): boolean {
+  return item.conclusion === 'success' || item.status === 'success';
+}
+
+function detectShowcaseEvents(previousCards: PullRequestCard[], nextCards: PullRequestCard[]): ShowcaseEvent[] {
+  const prevMap = new Map(previousCards.map((item) => [item.id, item]));
+  const nextMap = new Map(nextCards.map((item) => [item.id, item]));
+
+  const newPrEvents: ShowcaseEvent[] = nextCards
+    .filter((item) => !prevMap.has(item.id))
+    .map((item) => ({ type: 'new_pr', pr: item, shouldReturnToCard: true }));
+
+  const ciCompleteEvents: ShowcaseEvent[] = nextCards
+    .filter((item) => {
+      const old = prevMap.get(item.id);
+      if (!old) return false;
+      const hadPending = old.ciStates.some(isPendingStatus);
+      const hasPendingNow = item.ciStates.some(isPendingStatus);
+      return hadPending && !hasPendingNow && item.ciStates.length > 0;
+    })
+    .map((item) => ({
+      type: 'ci_complete' as const,
+      pr: item,
+      shouldReturnToCard: true,
+      ciSummary: item.ciStates.map((state) => ({
+        name: state.name,
+        result: isSuccessStatus(state) ? 'success' : 'failure',
+      })),
+    }));
+
+  const mergedCandidates = previousCards.filter((item) => !nextMap.has(item.id));
+  const mergedEvents: ShowcaseEvent[] = mergedCandidates.map((item) => ({
+    type: 'merged',
+    pr: item,
+    shouldReturnToCard: false,
+  }));
+
+  return [...newPrEvents, ...ciCompleteEvents, ...mergedEvents].slice(0, MAX_REFRESH_EVENTS);
+}
+
+async function filterVerifiedMergedEvents(events: ShowcaseEvent[]): Promise<ShowcaseEvent[]> {
+  const mergedChecks = await Promise.all(
+    events
+      .filter((item) => item.type === 'merged')
+      .map(async (item) => ({
+        event: item,
+        mergeState: await fetchPullRequestMergeState(item.pr.number),
+      })),
+  );
+
+  const verifiedMerged = new Set(
+    mergedChecks.filter((item) => item.mergeState.merged).map((item) => item.event.pr.id),
+  );
+
+  return events.filter((event) => event.type !== 'merged' || verifiedMerged.has(event.pr.id));
+}
+
+function enqueueShowcases(events: ShowcaseEvent[]) {
+  if (events.length === 0) return;
+
+  const remainingCapacity = Math.max(0, MAX_SHOWCASE_QUEUE - showcaseQueue.length);
+  if (remainingCapacity === 0) return;
+
+  showcaseQueue.push(...events.slice(0, remainingCapacity));
+  if (!showcasePlaying) {
+    void playShowcaseQueue();
+  }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function animateShowcaseExit(event: ShowcaseEvent): Promise<void> {
+  const element = showcaseCardRef.value;
+  if (!element) return;
+
+  const fromRect = element.getBoundingClientRect();
+  element.style.top = `${fromRect.top}px`;
+  element.style.left = `${fromRect.left}px`;
+  element.style.width = `${fromRect.width}px`;
+  element.style.height = `${fromRect.height}px`;
+  element.style.transform = 'none';
+  element.style.transition = 'none';
+  void element.offsetHeight;
+
+  const target = event.shouldReturnToCard
+    ? document.querySelector<HTMLElement>(`.card-slot[data-pr-id="${event.pr.id}"]`)
+    : null;
+
+  element.style.transition = 'all .75s cubic-bezier(0.22, 1, 0.36, 1)';
+
+  if (target) {
+    const targetRect = target.getBoundingClientRect();
+    element.style.top = `${targetRect.top}px`;
+    element.style.left = `${targetRect.left}px`;
+    element.style.width = `${targetRect.width}px`;
+    element.style.height = `${targetRect.height}px`;
+    element.style.opacity = '0.2';
+  } else {
+    element.style.top = `${window.innerHeight + 120}px`;
+    element.style.opacity = '0';
+    element.style.transform = 'scale(0.86)';
+  }
+
+  await wait(800);
+  element.removeAttribute('style');
+}
+
+async function playShowcaseQueue() {
+  showcasePlaying = true;
+
+  while (showcaseQueue.length > 0) {
+    const event = showcaseQueue.shift();
+    if (!event) continue;
+
+    showcase.value = event;
+    showcasePhase.value = 'enter';
+    await nextTick();
+    await wait(900);
+    showcasePhase.value = 'idle';
+    await wait(1600);
+    await animateShowcaseExit(event);
+    showcase.value = null;
+    await nextTick();
+    await wait(220);
+  }
+
+  showcasePlaying = false;
+}
+
+async function executeRefreshCycle() {
   isUpdating.value = true;
+
   try {
-    prs.value = await fetchPrCards();
+    const previousCards = [...prs.value];
+    const nextCards = await fetchPrCards();
+    const detectedEvents = detectShowcaseEvents(previousCards, nextCards);
+    const finalEvents = await filterVerifiedMergedEvents(detectedEvents);
+
+    prs.value = nextCards;
+    enqueueShowcases(finalEvents);
     lastUpdatedAt.value = new Date();
     error.value = '';
   } catch (e) {
@@ -83,6 +281,25 @@ async function refresh() {
     error.value = '資料更新失敗，先顯示上一版資料。請稍後再試。';
   } finally {
     isUpdating.value = false;
+  }
+}
+
+async function refresh() {
+  if (refreshInFlight) {
+    refreshQueued = true;
+    return refreshInFlight;
+  }
+
+  refreshInFlight = executeRefreshCycle();
+
+  try {
+    await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+    if (refreshQueued) {
+      refreshQueued = false;
+      void refresh();
+    }
   }
 }
 
@@ -115,7 +332,7 @@ onMounted(async () => {
     : '目前未設定 token，將使用匿名請求。';
 
   await refresh();
-  timer = setInterval(() => void refresh(), 30_000);
+  timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
 });
 
 onUnmounted(() => {
@@ -146,9 +363,70 @@ code { color:#93c5fd; }
 .token-hint { margin: .45rem 0 0; font-size: .8rem; color: #cbd5e1; }
 .error { border:1px solid #dc2626; color:#fecaca; background:#3f1119; border-radius:10px; padding:.6rem .8rem; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.65rem; }
+.card-slot { min-width: 0; }
+
+.showcase-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 70;
+  pointer-events: none;
+}
+
+.showcase-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(95vw, 1120px);
+  max-height: 92vh;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+}
+
+.showcase-card.enter {
+  animation: card-drop-in .9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.showcase-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.confetti {
+  --size: 10px;
+  position: absolute;
+  bottom: -1rem;
+  width: var(--size);
+  height: calc(var(--size) * 1.8);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fbbf24, #f43f5e);
+  animation-name: cannon;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+
+.confetti:nth-child(2n) { background: linear-gradient(180deg, #60a5fa, #34d399); }
+.confetti:nth-child(3n) { background: linear-gradient(180deg, #a78bfa, #38bdf8); }
+
+@keyframes card-drop-in {
+  from { transform: translate(-50%, -135%); }
+  to { transform: translate(-50%, -50%); }
+}
+
+@keyframes cannon {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-36vh) translateX(48px) rotate(380deg); opacity: 0; }
+}
 
 @media (max-width: 950px) and (orientation: landscape) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .showcase-card { width: min(96vw, 1120px); }
 }
 
 @media (max-width: 640px) {
