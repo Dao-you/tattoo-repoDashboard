@@ -26,6 +26,8 @@ export type PullRequestCard = {
   linkedIssue: string | null;
   buildNumber: string | null;
   ciStates: Array<{ name: string; status: string; conclusion: string | null; url: string | null }>;
+  reviewStatus: 'draft' | 'pending review' | 'ci failed' | 'approved' | null;
+  approvedCount: number;
 };
 
 const API_BASE = 'https://api.github.com';
@@ -125,6 +127,44 @@ function normalizeCiStates(checkRuns: any[] = [], statuses: any[] = []) {
     .slice(0, 4);
 }
 
+function isFailedCiState(item: { status: string; conclusion: string | null }) {
+  const status = item.status?.toLowerCase?.() ?? '';
+  const conclusion = item.conclusion?.toLowerCase?.() ?? '';
+  return status === 'failure' || conclusion === 'failure' || conclusion === 'timed_out' || conclusion === 'cancelled';
+}
+
+function inferReviewStatus(params: {
+  draft: boolean;
+  ciStates: Array<{ status: string; conclusion: string | null }>;
+  reviews: any[];
+}): { reviewStatus: PullRequestCard['reviewStatus']; approvedCount: number } {
+  if (params.draft) {
+    return { reviewStatus: 'draft', approvedCount: 0 };
+  }
+
+  if (params.ciStates.some((item) => isFailedCiState(item))) {
+    return { reviewStatus: 'ci failed', approvedCount: 0 };
+  }
+
+  const latestReviewsByAuthor = new Map<string, string>();
+  params.reviews.forEach((review) => {
+    const login = review.user?.login;
+    if (!login) return;
+
+    latestReviewsByAuthor.set(login, review.state ?? '');
+  });
+
+  const latestStates = [...latestReviewsByAuthor.values()];
+  const hasChangesRequested = latestStates.includes('CHANGES_REQUESTED');
+  const approvedCount = latestStates.filter((state) => state === 'APPROVED').length;
+
+  if (approvedCount > 0 && !hasChangesRequested) {
+    return { reviewStatus: 'approved', approvedCount };
+  }
+
+  return { reviewStatus: 'pending review', approvedCount: 0 };
+}
+
 export async function fetchPrCards(): Promise<PullRequestCard[]> {
   const pulls = await request(
     `/repos/${OWNER}/${REPO}/pulls?state=open&sort=updated&direction=desc&per_page=${MAX_PRS}`,
@@ -132,10 +172,11 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
 
   const cards = await Promise.all(
     pulls.map(async (pr: any) => {
-      const [commits, issueComments, reviewComments] = await Promise.all([
+      const [commits, issueComments, reviewComments, reviews] = await Promise.all([
         request(`/repos/${OWNER}/${REPO}/pulls/${pr.number}/commits?per_page=100`),
         request(`/repos/${OWNER}/${REPO}/issues/${pr.number}/comments?per_page=100`),
         request(`/repos/${OWNER}/${REPO}/pulls/${pr.number}/comments?per_page=100`),
+        request(`/repos/${OWNER}/${REPO}/pulls/${pr.number}/reviews?per_page=100`),
       ]);
 
       const latestCommitRaw = commits.at(-1) ?? null;
@@ -173,6 +214,10 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
 
       const { buildNumber } = parseBuildNumberFromComments(issueComments);
 
+      const ciStates = normalizeCiStates(checks.check_runs, statuses.statuses);
+
+      const { reviewStatus, approvedCount } = inferReviewStatus({ draft: Boolean(pr.draft), ciStates, reviews });
+
       return {
         id: pr.id,
         number: pr.number,
@@ -188,10 +233,20 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
         latestComment,
         linkedIssue: parseLinkedIssue({ title: pr.title, body: pr.body }),
         buildNumber,
-        ciStates: normalizeCiStates(checks.check_runs, statuses.statuses),
+        ciStates,
+        reviewStatus,
+        approvedCount,
       } as PullRequestCard;
     }),
   );
 
-  return cards.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  return cards.sort((a, b) => {
+    const aDraftRank = a.reviewStatus === 'draft' ? 1 : 0;
+    const bDraftRank = b.reviewStatus === 'draft' ? 1 : 0;
+    if (aDraftRank !== bDraftRank) {
+      return aDraftRank - bDraftRank;
+    }
+
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
 }
