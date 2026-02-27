@@ -172,13 +172,17 @@ function formatDate(value: string): string {
 }
 
 .cinematic-overlay {
-  margin-top: auto;
+  margin-top: 0;
   border-radius: 12px;
   border: 1px solid #2b3f72;
   background: rgba(15, 23, 42, 0.92);
   padding: .8rem;
   display: grid;
   gap: .5rem;
+}
+
+.pr-card.cinematic .cinematic-overlay {
+  order: -1;
 }
 
 .effect-title {

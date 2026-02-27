@@ -52,6 +52,20 @@
       </div>
       <p class="token-hint">可設定 {{ MIN_REFRESH_INTERVAL_SEC }} - {{ MAX_REFRESH_INTERVAL_SEC }} 秒。</p>
 
+      <label for="showcase-duration" class="token-label">全螢幕提示停留（秒）</label>
+      <div class="token-controls refresh-controls">
+        <input
+          id="showcase-duration"
+          v-model.number="showcaseDurationInputSec"
+          type="number"
+          :min="MIN_SHOWCASE_DURATION_SEC"
+          :max="MAX_SHOWCASE_DURATION_SEC"
+          step="1"
+        />
+        <button type="button" @click="applyShowcaseDuration">套用提示停留</button>
+      </div>
+      <p class="token-hint">可設定 {{ MIN_SHOWCASE_DURATION_SEC }} - {{ MAX_SHOWCASE_DURATION_SEC }} 秒。</p>
+
       <label for="github-token" class="token-label">GitHub API Token（選填）</label>
       <div class="token-controls">
         <input
@@ -115,6 +129,10 @@ const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
 const MAX_SHOWCASE_QUEUE = 6;
 const MAX_REFRESH_EVENTS = 5;
 const CONFETTI_COUNT = 18;
+const DEFAULT_SHOWCASE_DURATION_SEC = 8;
+const MIN_SHOWCASE_DURATION_SEC = 3;
+const MAX_SHOWCASE_DURATION_SEC = 20;
+const SHOWCASE_DURATION_STORAGE_KEY = 'tattoo-dashboard-showcase-duration-sec';
 
 const prs = ref<PullRequestCard[]>([]);
 const error = ref('');
@@ -127,6 +145,8 @@ const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const showcaseDurationSec = ref(DEFAULT_SHOWCASE_DURATION_SEC);
+const showcaseDurationInputSec = ref(DEFAULT_SHOWCASE_DURATION_SEC);
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let nextRefreshAt: number | null = null;
@@ -165,6 +185,17 @@ function readRefreshIntervalFromStorage() {
   if (!Number.isInteger(parsed)) return DEFAULT_REFRESH_INTERVAL_SEC;
   if (parsed < MIN_REFRESH_INTERVAL_SEC || parsed > MAX_REFRESH_INTERVAL_SEC) {
     return DEFAULT_REFRESH_INTERVAL_SEC;
+  }
+
+  return parsed;
+}
+
+function readShowcaseDurationFromStorage() {
+  const raw = window.localStorage.getItem(SHOWCASE_DURATION_STORAGE_KEY);
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) return DEFAULT_SHOWCASE_DURATION_SEC;
+  if (parsed < MIN_SHOWCASE_DURATION_SEC || parsed > MAX_SHOWCASE_DURATION_SEC) {
+    return DEFAULT_SHOWCASE_DURATION_SEC;
   }
 
   return parsed;
@@ -335,7 +366,7 @@ async function playShowcaseQueue() {
     await nextTick();
     await wait(900);
     showcasePhase.value = 'idle';
-    await wait(1600);
+    await wait(showcaseDurationSec.value * 1000);
     await animateShowcaseExit(event);
     showcase.value = null;
     await nextTick();
@@ -424,9 +455,27 @@ function applyRefreshInterval() {
   tokenMessage.value = `已套用更新頻率：每 ${refreshIntervalSec.value} 秒更新一次。`;
 }
 
+function applyShowcaseDuration() {
+  if (!Number.isInteger(showcaseDurationInputSec.value)) {
+    tokenMessage.value = '全螢幕提示停留需為整數秒。';
+    return;
+  }
+
+  if (showcaseDurationInputSec.value < MIN_SHOWCASE_DURATION_SEC || showcaseDurationInputSec.value > MAX_SHOWCASE_DURATION_SEC) {
+    tokenMessage.value = `全螢幕提示停留需介於 ${MIN_SHOWCASE_DURATION_SEC}-${MAX_SHOWCASE_DURATION_SEC} 秒。`;
+    return;
+  }
+
+  showcaseDurationSec.value = showcaseDurationInputSec.value;
+  window.localStorage.setItem(SHOWCASE_DURATION_STORAGE_KEY, String(showcaseDurationSec.value));
+  tokenMessage.value = `已套用全螢幕提示停留：${showcaseDurationSec.value} 秒。`;
+}
+
 onMounted(async () => {
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
+  showcaseDurationSec.value = readShowcaseDurationFromStorage();
+  showcaseDurationInputSec.value = showcaseDurationSec.value;
 
   hasTokenSaved.value = hasSavedGithubToken();
   tokenMessage.value = hasTokenSaved.value
