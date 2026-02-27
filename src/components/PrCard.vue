@@ -4,10 +4,6 @@
       <div class="pr-head">
         <div class="pr-meta">
           <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
-          <a :href="pr.author.url" target="_blank" rel="noreferrer" class="owner-pill" :title="`Owner: ${pr.author.login}`">
-            <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
-            <span>{{ pr.author.login }}</span>
-          </a>
         </div>
         <span v-if="statusLabel" class="review-status" :class="statusClass">{{ statusLabel }}</span>
       </div>
@@ -17,6 +13,17 @@
     <h2 class="title" :title="pr.title">{{ pr.title }}</h2>
 
     <div class="summary">
+      <a
+        :href="pr.author.url"
+        target="_blank"
+        rel="noreferrer"
+        class="line-item"
+        :title="`Owner: ${pr.author.login}`"
+      >
+        <span class="type-icon" aria-hidden="true">👤</span>
+        <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
+        <span>{{ pr.author.login }}</span>
+      </a>
       <div class="line-item" v-if="pr.latestCommit">
         <span class="type-icon" aria-hidden="true">🧾</span>
         <img :src="pr.latestCommit.authorAvatarUrl" :alt="pr.latestCommit.authorLogin" class="avatar" />
@@ -159,25 +166,6 @@ const statusClass = computed(() => {
 .pr-head { display: flex; align-items: flex-start; gap: .45rem; }
 .pr-meta { display:flex; flex-direction:column; gap:.2rem; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
-.owner-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: .28rem;
-  font-size: .68rem;
-  font-weight: 700;
-  color: #bfdbfe;
-  background: #14274f;
-  border: 1px solid #2b4b92;
-  border-radius: 999px;
-  padding: .1rem .38rem;
-  text-decoration: none;
-  max-width: 140px;
-}
-.owner-pill span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .review-status {
   font-size: .68rem;
   font-weight: 700;
@@ -205,6 +193,7 @@ const statusClass = computed(() => {
 }
 .summary { display:flex; gap:.45rem; flex-wrap:wrap; }
 .line-item { display:flex; align-items:center; gap:.3rem; font-size:.74rem; color:#cbd5e1; background:#18233f; border:1px solid #2b3f72; border-radius:999px; padding:.12rem .38rem; max-width:100%; }
+.summary a.line-item { text-decoration:none; }
 .type-icon { font-size:.72rem; line-height:1; }
 .line-item.dim { color:#94a3b8; }
 .issue-pill { color:#a5b4fc; border-color:#4856a1; }
