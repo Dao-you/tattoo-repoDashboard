@@ -107,23 +107,15 @@ export async function fetchPullRequestMergeState(number: number): Promise<{ merg
   };
 }
 
-function normalizeCiStates(checkRuns: any[] = [], statuses: any[] = []) {
-  const checks = checkRuns.map((run) => ({
-    name: run.name,
-    status: run.status,
-    conclusion: run.conclusion,
-    url: run.html_url,
-  }));
-
-  const commitStatuses = statuses.map((state) => ({
-    name: state.context,
-    status: state.state,
-    conclusion: state.state,
-    url: state.target_url,
-  }));
-
-  return [...checks, ...commitStatuses]
-    .filter((item) => item.name)
+function normalizeCiStates(checkRuns: any[] = []) {
+  return checkRuns
+    .filter((run) => run?.name && run?.app?.slug === 'github-actions')
+    .map((run) => ({
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+      url: run.html_url,
+    }))
     .slice(0, 4);
 }
 
@@ -219,14 +211,11 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
         : null;
 
       const sha = latestCommit?.sha ?? pr.head.sha;
-      const [checks, statuses] = await Promise.all([
-        request(`/repos/${OWNER}/${REPO}/commits/${sha}/check-runs`),
-        request(`/repos/${OWNER}/${REPO}/commits/${sha}/status`),
-      ]);
+      const checks = await request(`/repos/${OWNER}/${REPO}/commits/${sha}/check-runs`);
 
       const { buildNumber } = parseBuildNumberFromComments(issueComments);
 
-      const ciStates = normalizeCiStates(checks.check_runs, statuses.statuses);
+      const ciStates = normalizeCiStates(checks.check_runs);
 
       return {
         id: pr.id,
