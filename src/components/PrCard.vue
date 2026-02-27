@@ -3,12 +3,16 @@
     <header class="top">
       <div class="pr-head">
         <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
+        <a :href="pr.author.url" target="_blank" rel="noreferrer" class="owner-pill" :title="`Owner: ${pr.author.login}`">
+          <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
+          <span>{{ pr.author.login }}</span>
+        </a>
         <span v-if="statusLabel" class="review-status" :class="statusClass">{{ statusLabel }}</span>
       </div>
       <span class="build" :class="{ missing: !pr.buildNumber }">CI #{{ pr.buildNumber ?? 'N/A' }}</span>
     </header>
 
-    <h2 class="title" :title="pr.title">{{ truncate(pr.title, 66) }}</h2>
+    <h2 class="title" :title="pr.title">{{ pr.title }}</h2>
 
     <div class="summary">
       <div class="line-item" v-if="pr.latestCommit">
@@ -145,13 +149,32 @@ const statusClass = computed(() => {
   display:flex;
   flex-direction:column;
   gap:.5rem;
-  min-height: 220px;
+  min-height: 236px;
   min-width: 240px;
   box-shadow:0 8px 18px rgba(0,0,0,.24);
 }
 .top { display:flex; justify-content:space-between; align-items:center; }
 .pr-head { display: flex; align-items: center; gap: .4rem; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
+.owner-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  font-size: .68rem;
+  font-weight: 700;
+  color: #bfdbfe;
+  background: #14274f;
+  border: 1px solid #2b4b92;
+  border-radius: 999px;
+  padding: .1rem .38rem;
+  text-decoration: none;
+  max-width: 140px;
+}
+.owner-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .review-status {
   font-size: .68rem;
   font-weight: 700;
@@ -167,7 +190,16 @@ const statusClass = computed(() => {
 .review-status.is-approved { color: #bbf7d0; background: #052e16; border-color: #166534; }
 .build { font-weight:700; color:#fde68a; background:#422006; padding:.1rem .45rem; border-radius:999px; font-size:.74rem; }
 .build.missing { color:#cbd5e1; background:#334155; }
-.title { margin:0; font-size:.95rem; line-height:1.25; color:#f8fafc; }
+.title {
+  margin:0;
+  font-size:.95rem;
+  line-height:1.25;
+  color:#f8fafc;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .summary { display:flex; gap:.45rem; flex-wrap:wrap; }
 .line-item { display:flex; align-items:center; gap:.3rem; font-size:.74rem; color:#cbd5e1; background:#18233f; border:1px solid #2b3f72; border-radius:999px; padding:.12rem .38rem; max-width:100%; }
 .type-icon { font-size:.72rem; line-height:1; }
