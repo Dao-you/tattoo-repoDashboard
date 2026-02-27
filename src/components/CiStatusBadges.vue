@@ -9,7 +9,8 @@
       target="_blank"
       rel="noreferrer"
     >
-      {{ statusIcon(item) }}
+      <span class="ci-icon">{{ statusIcon(item) }}</span>
+      <span class="ci-name">{{ item.name }}</span>
     </a>
     <span v-if="items.length === 0" class="empty">-</span>
   </div>
@@ -32,8 +33,8 @@ function statusIcon(item: { status: string; conclusion: string | null }) {
 <style scoped>
 .ci-badges { display:flex; align-items:center; gap: .3rem; }
 .ci-item {
-  display:grid;
-  place-items:center;
+  display:inline-flex;
+  align-items:center;
   width:1.45rem;
   height:1.45rem;
   border-radius:999px;
@@ -41,6 +42,34 @@ function statusIcon(item: { status: string; conclusion: string | null }) {
   background:#17203d;
   border:1px solid #30406f;
   font-size:.8rem;
+  overflow:hidden;
+  white-space:nowrap;
+  transition:width .2s ease, padding .2s ease, background-color .2s ease;
+}
+
+.ci-item:hover,
+.ci-item:focus-visible {
+  width:min(12rem, 100%);
+  padding:0 .45rem;
+  background:#1f2b50;
+}
+
+.ci-icon {
+  width:1.45rem;
+  flex:0 0 1.45rem;
+  text-align:center;
+}
+
+.ci-name {
+  opacity:0;
+  max-width:0;
+  transition:opacity .18s ease, max-width .2s ease;
+}
+
+.ci-item:hover .ci-name,
+.ci-item:focus-visible .ci-name {
+  opacity:1;
+  max-width:9rem;
 }
 .empty { font-size:.78rem; color:#94a3b8; }
 </style>
