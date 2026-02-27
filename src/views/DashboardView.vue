@@ -66,6 +66,11 @@
       </div>
       <p class="token-hint">可設定 {{ MIN_SHOWCASE_DURATION_SEC }} - {{ MAX_SHOWCASE_DURATION_SEC }} 秒。</p>
 
+      <label class="token-label">動畫測試</label>
+      <div class="token-controls">
+        <button type="button" class="secondary" @click="triggerTestShowcase">測試最新 PR 動畫</button>
+      </div>
+
       <label for="github-token" class="token-label">GitHub API Token（選填）</label>
       <div class="token-controls">
         <input
@@ -153,6 +158,7 @@ let nextRefreshAt: number | null = null;
 
 let refreshInFlight: Promise<void> | null = null;
 let refreshQueued = false;
+let hasLoadedInitialData = false;
 
 type ShowcaseEvent = {
   type: 'new_pr' | 'ci_complete' | 'merged';
@@ -382,10 +388,11 @@ async function executeRefreshCycle() {
   try {
     const previousCards = [...prs.value];
     const nextCards = await fetchPrCards();
-    const detectedEvents = detectShowcaseEvents(previousCards, nextCards);
+    const detectedEvents = hasLoadedInitialData ? detectShowcaseEvents(previousCards, nextCards) : [];
     const finalEvents = await filterVerifiedMergedEvents(detectedEvents);
 
     prs.value = nextCards;
+    hasLoadedInitialData = true;
     enqueueShowcases(finalEvents);
     lastUpdatedAt.value = new Date();
     error.value = '';
@@ -395,6 +402,17 @@ async function executeRefreshCycle() {
   } finally {
     isUpdating.value = false;
   }
+}
+
+function triggerTestShowcase() {
+  const latestPr = prs.value[0];
+  if (!latestPr) {
+    tokenMessage.value = '目前沒有可測試的 PR。';
+    return;
+  }
+
+  enqueueShowcases([{ type: 'new_pr', pr: latestPr, shouldReturnToCard: true }]);
+  tokenMessage.value = `已觸發 #${latestPr.number} 的測試動畫。`;
 }
 
 async function refresh() {
