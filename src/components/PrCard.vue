@@ -139,6 +139,9 @@ const statusClassMap = {
 const statusLabel = computed(() => {
   const status = pr.value.reviewStatus;
   if (!status) return '';
+  if (status === 'approved') {
+    return `${Math.max(1, pr.value.approvedCount)} ${statusLabelMap.approved}`;
+  }
   return statusLabelMap[status] ?? '';
 });
 
