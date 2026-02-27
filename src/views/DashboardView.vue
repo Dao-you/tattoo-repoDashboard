@@ -50,7 +50,7 @@
     <Teleport to="body">
       <section v-if="showcase" class="showcase-mask" aria-live="polite">
         <div class="showcase-confetti" aria-hidden="true">
-          <span v-for="i in 18" :key="i" class="confetti" :style="confettiStyle(i)" />
+          <span v-for="item in confettiStyles" :key="item.key" class="confetti" :style="item.style" />
         </div>
 
         <div ref="showcaseCardRef" class="showcase-card" :class="showcasePhase">
@@ -78,6 +78,11 @@ import {
   type PullRequestCard,
 } from '../services/githubApi.ts';
 
+const REFRESH_INTERVAL_MS = 30_000;
+const MAX_SHOWCASE_QUEUE = 6;
+const MAX_REFRESH_EVENTS = 5;
+const CONFETTI_COUNT = 18;
+
 const prs = ref<PullRequestCard[]>([]);
 const error = ref('');
 const isUpdating = ref(false);
@@ -87,6 +92,9 @@ const hasTokenSaved = ref(false);
 const tokenInput = ref('');
 const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 let timer: ReturnType<typeof setInterval> | null = null;
+
+let refreshInFlight: Promise<void> | null = null;
+let refreshQueued = false;
 
 type ShowcaseEvent = {
   type: 'new_pr' | 'ci_complete' | 'merged';
@@ -104,6 +112,21 @@ let showcasePlaying = false;
 const lastUpdatedText = computed(() =>
   lastUpdatedAt.value ? `最後更新：${lastUpdatedAt.value.toLocaleString()}` : '尚未更新',
 );
+
+const confettiStyles = Array.from({ length: CONFETTI_COUNT }, (_, index) => {
+  const left = (index / CONFETTI_COUNT) * 100;
+  const delay = ((index % 6) * 0.1).toFixed(2);
+  const duration = (1.3 + (index % 5) * 0.18).toFixed(2);
+
+  return {
+    key: index,
+    style: {
+      left: `${left}%`,
+      animationDelay: `${delay}s`,
+      animationDuration: `${duration}s`,
+    },
+  };
+});
 
 function isPendingStatus(item: PullRequestCard['ciStates'][number]): boolean {
   return item.status === 'in_progress' || item.status === 'queued' || item.status === 'pending';
@@ -146,12 +169,33 @@ function detectShowcaseEvents(previousCards: PullRequestCard[], nextCards: PullR
     shouldReturnToCard: false,
   }));
 
-  return [...newPrEvents, ...ciCompleteEvents, ...mergedEvents].slice(0, 5);
+  return [...newPrEvents, ...ciCompleteEvents, ...mergedEvents].slice(0, MAX_REFRESH_EVENTS);
+}
+
+async function filterVerifiedMergedEvents(events: ShowcaseEvent[]): Promise<ShowcaseEvent[]> {
+  const mergedChecks = await Promise.all(
+    events
+      .filter((item) => item.type === 'merged')
+      .map(async (item) => ({
+        event: item,
+        mergeState: await fetchPullRequestMergeState(item.pr.number),
+      })),
+  );
+
+  const verifiedMerged = new Set(
+    mergedChecks.filter((item) => item.mergeState.merged).map((item) => item.event.pr.id),
+  );
+
+  return events.filter((event) => event.type !== 'merged' || verifiedMerged.has(event.pr.id));
 }
 
 function enqueueShowcases(events: ShowcaseEvent[]) {
   if (events.length === 0) return;
-  showcaseQueue.push(...events);
+
+  const remainingCapacity = Math.max(0, MAX_SHOWCASE_QUEUE - showcaseQueue.length);
+  if (remainingCapacity === 0) return;
+
+  showcaseQueue.push(...events.slice(0, remainingCapacity));
   if (!showcasePlaying) {
     void playShowcaseQueue();
   }
@@ -219,41 +263,14 @@ async function playShowcaseQueue() {
   showcasePlaying = false;
 }
 
-function confettiStyle(index: number) {
-  const left = (index / 18) * 100;
-  const delay = ((index % 6) * 0.1).toFixed(2);
-  const duration = (1.3 + (index % 5) * 0.18).toFixed(2);
-  return {
-    left: `${left}%`,
-    animationDelay: `${delay}s`,
-    animationDuration: `${duration}s`,
-  };
-}
-
-async function refresh() {
+async function executeRefreshCycle() {
   isUpdating.value = true;
+
   try {
-    const previousCards = prs.value;
+    const previousCards = [...prs.value];
     const nextCards = await fetchPrCards();
-    const localEvents = detectShowcaseEvents(previousCards, nextCards);
-
-    const mergedChecks = await Promise.all(
-      localEvents
-        .filter((item) => item.type === 'merged')
-        .map(async (item) => ({
-          event: item,
-          mergeState: await fetchPullRequestMergeState(item.pr.number),
-        })),
-    );
-
-    const verifiedMerged = new Set(
-      mergedChecks.filter((item) => item.mergeState.merged).map((item) => item.event.pr.id),
-    );
-
-    const finalEvents = localEvents.filter((event) => {
-      if (event.type !== 'merged') return true;
-      return verifiedMerged.has(event.pr.id);
-    });
+    const detectedEvents = detectShowcaseEvents(previousCards, nextCards);
+    const finalEvents = await filterVerifiedMergedEvents(detectedEvents);
 
     prs.value = nextCards;
     enqueueShowcases(finalEvents);
@@ -264,6 +281,25 @@ async function refresh() {
     error.value = '資料更新失敗，先顯示上一版資料。請稍後再試。';
   } finally {
     isUpdating.value = false;
+  }
+}
+
+async function refresh() {
+  if (refreshInFlight) {
+    refreshQueued = true;
+    return refreshInFlight;
+  }
+
+  refreshInFlight = executeRefreshCycle();
+
+  try {
+    await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+    if (refreshQueued) {
+      refreshQueued = false;
+      void refresh();
+    }
   }
 }
 
@@ -296,7 +332,7 @@ onMounted(async () => {
     : '目前未設定 token，將使用匿名請求。';
 
   await refresh();
-  timer = setInterval(() => void refresh(), 30_000);
+  timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
 });
 
 onUnmounted(() => {
