@@ -80,8 +80,8 @@ function formatDate(value: string): string {
 .line-item.dim { color:#94a3b8; }
 .issue-pill { color:#a5b4fc; border-color:#4856a1; }
 .avatar { width:16px; height:16px; border-radius:999px; border:1px solid #334155; }
-.bottom { display:flex; justify-content:flex-end; align-items:center; gap:.4rem; }
-.detail-panel { border-top:1px solid #233154; padding-top:.4rem; margin-top:auto; }
+.bottom { display:flex; justify-content:flex-end; align-items:center; gap:.4rem; margin-top:auto; }
+.detail-panel { border-top:1px solid #233154; padding-top:.4rem; }
 .detail-panel summary { cursor:pointer; font-size:.74rem; color:#93c5fd; }
 .detail-content { display:flex; flex-direction:column; gap:.3rem; margin-top:.4rem; }
 .detail-link { color:#e2e8f0; text-decoration:none; font-size:.78rem; }

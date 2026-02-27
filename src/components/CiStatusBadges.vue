@@ -1,7 +1,7 @@
 <template>
   <div class="ci-badges" aria-label="CI statuses">
     <a
-      v-for="item in items"
+      v-for="item in displayItems"
       :key="item.name"
       :href="item.url || '#'"
       class="ci-item"
@@ -9,7 +9,7 @@
       target="_blank"
       rel="noreferrer"
     >
-      <span class="ci-icon">{{ statusIcon(item) }}</span>
+      <span class="ci-icon">{{ workflowIcon(item.name, item) }}</span>
       <span class="ci-name">{{ item.name }}</span>
     </a>
     <span v-if="items.length === 0" class="empty">-</span>
@@ -17,9 +17,24 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed } from 'vue';
+
+const props = defineProps<{
   items: Array<{ name: string; status: string; conclusion: string | null; url: string | null }>;
 }>();
+
+const displayItems = computed(() => [...props.items].reverse());
+
+function workflowIcon(name: string, item: { status: string; conclusion: string | null }) {
+  const lowerName = name.toLowerCase();
+
+  if (lowerName.includes('prepare')) return '🐙';
+  if (lowerName.includes('analyze')) return '🎯';
+  if (lowerName.includes('android')) return '🤖';
+  if (lowerName.includes('ios') || lowerName.includes('iso')) return '🍎';
+
+  return statusIcon(item);
+}
 
 function statusIcon(item: { status: string; conclusion: string | null }) {
   if (item.status === 'in_progress' || item.status === 'queued' || item.status === 'pending') return '🟡';
@@ -37,7 +52,7 @@ function statusIcon(item: { status: string; conclusion: string | null }) {
   align-items:center;
   width:1.45rem;
   height:1.45rem;
-  border-radius:999px;
+  border-radius:8px;
   text-decoration:none;
   background:#17203d;
   border:1px solid #30406f;
@@ -58,6 +73,7 @@ function statusIcon(item: { status: string; conclusion: string | null }) {
   width:1.45rem;
   flex:0 0 1.45rem;
   text-align:center;
+  font-size:1rem;
 }
 
 .ci-name {
