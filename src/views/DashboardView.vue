@@ -4,7 +4,19 @@
       <div>
         <h1>
           Tattoo PR Dashboard
-          <span class="refresh-countdown">refresh 倒數 {{ refreshCountdownSec }}s</span>
+          <span class="refresh-ring" role="status" aria-live="polite" aria-label="下次更新倒數">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <circle class="refresh-ring-track" cx="20" cy="20" r="16" />
+              <circle
+                class="refresh-ring-progress"
+                cx="20"
+                cy="20"
+                r="16"
+                :style="{ strokeDashoffset: `${refreshRingDashOffset}px` }"
+              />
+            </svg>
+            <span class="refresh-ring-number">{{ refreshCountdownSec }}</span>
+          </span>
         </h1>
         <p>Open PR snapshots from <code>NTUT-NPC/tattoo</code> · refresh every {{ refreshIntervalSec }}s</p>
       </div>
@@ -138,6 +150,14 @@ let showcasePlaying = false;
 const lastUpdatedText = computed(() =>
   lastUpdatedAt.value ? `最後更新：${lastUpdatedAt.value.toLocaleString()}` : '尚未更新',
 );
+const refreshRingDashOffset = computed(() => {
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const safeInterval = Math.max(1, refreshIntervalSec.value);
+  const progress = Math.min(1, Math.max(0, refreshCountdownSec.value / safeInterval));
+
+  return circumference * (1 - progress);
+});
 
 function readRefreshIntervalFromStorage() {
   const raw = window.localStorage.getItem(REFRESH_INTERVAL_STORAGE_KEY);
@@ -429,7 +449,42 @@ onUnmounted(() => {
 .dashboard { max-width: 1200px; margin: 0 auto; padding: .75rem; }
 .header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; }
 .header h1 { margin:0; color:#f8fafc; display: flex; align-items: baseline; gap: .55rem; flex-wrap: wrap; }
-.refresh-countdown { font-size: .95rem; color: #93c5fd; font-weight: 600; }
+.refresh-ring {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+  color: #bfdbfe;
+}
+
+.refresh-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.refresh-ring-track,
+.refresh-ring-progress {
+  fill: none;
+  stroke-width: 3;
+}
+
+.refresh-ring-track { stroke: #1e293b; }
+
+.refresh-ring-progress {
+  stroke: #60a5fa;
+  stroke-linecap: round;
+  stroke-dasharray: 100.53px;
+  transition: stroke-dashoffset .25s linear;
+}
+
+.refresh-ring-number {
+  position: absolute;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1;
+}
 .header p { margin:.3rem 0 0; color:#94a3b8; }
 code { color:#93c5fd; }
 .meta { display:flex; flex-direction:column; align-items:flex-end; gap:.35rem; position: relative; }
