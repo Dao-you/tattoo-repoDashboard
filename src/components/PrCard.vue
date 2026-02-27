@@ -2,11 +2,13 @@
   <article class="pr-card" :class="{ cinematic: cinematic }">
     <header class="top">
       <div class="pr-head">
-        <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
-        <a :href="pr.author.url" target="_blank" rel="noreferrer" class="owner-pill" :title="`Owner: ${pr.author.login}`">
-          <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
-          <span>{{ pr.author.login }}</span>
-        </a>
+        <div class="pr-meta">
+          <a :href="pr.url" target="_blank" rel="noreferrer" class="pr-no">#{{ pr.number }}</a>
+          <a :href="pr.author.url" target="_blank" rel="noreferrer" class="owner-pill" :title="`Owner: ${pr.author.login}`">
+            <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
+            <span>{{ pr.author.login }}</span>
+          </a>
+        </div>
         <span v-if="statusLabel" class="review-status" :class="statusClass">{{ statusLabel }}</span>
       </div>
       <span class="build" :class="{ missing: !pr.buildNumber }">CI #{{ pr.buildNumber ?? 'N/A' }}</span>
@@ -154,7 +156,8 @@ const statusClass = computed(() => {
   box-shadow:0 8px 18px rgba(0,0,0,.24);
 }
 .top { display:flex; justify-content:space-between; align-items:center; }
-.pr-head { display: flex; align-items: center; gap: .4rem; }
+.pr-head { display: flex; align-items: flex-start; gap: .45rem; }
+.pr-meta { display:flex; flex-direction:column; gap:.2rem; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
 .owner-pill {
   display: inline-flex;
