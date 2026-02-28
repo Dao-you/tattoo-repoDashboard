@@ -10,7 +10,9 @@
       <span class="build" :class="{ missing: !pr.buildNumber }">CI #{{ pr.buildNumber ?? 'N/A' }}</span>
     </header>
 
-    <h2 class="title" :title="pr.title">{{ pr.title }}</h2>
+    <h2 class="title" :title="pr.title">
+      <a :href="pr.url" target="_blank" rel="noreferrer" class="title-link">{{ pr.title }}</a>
+    </h2>
 
     <div class="summary">
       <a
@@ -42,9 +44,10 @@
       <CiStatusBadges :items="pr.ciStates" />
     </section>
 
-    <details class="detail-panel" :open="cinematic">
-      <summary>展開細節</summary>
+    <section v-if="cinematic" class="detail-panel">
+      <h3 class="detail-heading">更多細節</h3>
       <div class="detail-content">
+        <p class="detail-text">更新時間：{{ formatDate(pr.updatedAt) }}</p>
         <a
           v-if="pr.latestCommit"
           :href="pr.latestCommit.url"
@@ -53,7 +56,7 @@
           class="detail-link"
           :title="pr.latestCommit.message"
         >
-          commit: {{ truncate(pr.latestCommit.message, 92) }}
+          最新 commit：{{ pr.latestCommit.message }}
         </a>
         <a
           v-if="pr.latestComment"
@@ -63,12 +66,27 @@
           class="detail-link"
           :title="pr.latestComment.body"
         >
-          comment: {{ truncate(pr.latestComment.body.replace(/\n/g, ' '), 92) }}
+          最新留言：{{ truncate(pr.latestComment.body.replace(/\n/g, ' '), 200) }}
         </a>
-      </div>
-    </details>
 
-    <div v-if="cinematic" class="cinematic-overlay" aria-live="polite">
+        <div v-if="pr.ciStates.length" class="detail-ci-list">
+          <template v-for="item in pr.ciStates" :key="item.name">
+            <a
+              v-if="item.url"
+              class="detail-link ci-link"
+              :href="item.url"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {{ item.name }} · {{ item.conclusion ?? item.status }}
+            </a>
+            <span v-else class="detail-text">{{ item.name }} · {{ item.conclusion ?? item.status }}</span>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <div v-if="cinematic && showEffect" class="cinematic-overlay" aria-live="polite">
       <p v-if="effect === 'new_pr'" class="effect-title">🚀 New PR arrived</p>
       <p v-else-if="effect === 'ci_complete'" class="effect-title">CI 全部完成</p>
       <p v-else-if="effect === 'merged'" class="effect-title">🔀 Merged to mainline</p>
@@ -107,11 +125,13 @@ const props = withDefaults(
     cinematic?: boolean;
     effect?: ShowcaseEffect;
     ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
+    showEffect?: boolean;
   }>(),
   {
     cinematic: false,
     effect: 'new_pr',
     ciSummary: () => [],
+    showEffect: true,
   },
 );
 
@@ -166,17 +186,20 @@ const statusClass = computed(() => {
   box-shadow:0 8px 18px rgba(0,0,0,.24);
 }
 .top { display:flex; justify-content:space-between; align-items:center; }
-.pr-head { display: flex; align-items: flex-start; gap: .45rem; }
+.pr-head { display: flex; align-items: center; gap: .45rem; }
 .pr-meta { display:flex; flex-direction:column; gap:.2rem; }
 .pr-no { font-weight:800; color:#93c5fd; text-decoration:none; font-size:1rem; }
 .review-status {
-  font-size: .68rem;
+  font-size: .74rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .03em;
+  letter-spacing: .01em;
   border-radius: 999px;
-  padding: .08rem .45rem;
+  padding: .1rem .45rem;
   border: 1px solid transparent;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
 }
 .review-status.is-draft { color: #d1d5db; background: #374151; border-color: #4b5563; }
 .review-status.is-pending-review { color: #fde68a; background: #422006; border-color: #854d0e; }
@@ -194,6 +217,8 @@ const statusClass = computed(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.title-link { color: inherit; text-decoration: none; }
+.title-link:hover { text-decoration: underline; }
 .summary { display:flex; gap:.45rem; flex-wrap:wrap; }
 .line-item { display:flex; align-items:center; gap:.3rem; font-size:.74rem; color:#cbd5e1; background:#18233f; border:1px solid #2b3f72; border-radius:999px; padding:.12rem .38rem; max-width:100%; }
 .summary a.line-item { text-decoration:none; }
@@ -203,9 +228,12 @@ const statusClass = computed(() => {
 .avatar { width:16px; height:16px; border-radius:999px; border:1px solid #334155; }
 .bottom { display:flex; justify-content:flex-end; align-items:center; gap:.4rem; margin-top:auto; }
 .detail-panel { border-top:1px solid #233154; padding-top:.4rem; }
-.detail-panel summary { cursor:pointer; font-size:.74rem; color:#93c5fd; }
+.detail-heading { margin: 0; font-size: .82rem; color: #93c5fd; }
 .detail-content { display:flex; flex-direction:column; gap:.3rem; margin-top:.4rem; }
 .detail-link { color:#e2e8f0; text-decoration:none; font-size:.78rem; }
+.detail-text { margin: 0; font-size: .8rem; color: #cbd5e1; }
+.detail-ci-list { display: flex; flex-direction: column; gap: .3rem; }
+.ci-link { color: #bfdbfe; }
 
 .pr-card.cinematic {
   height: min(80vh, 680px);
@@ -232,12 +260,14 @@ const statusClass = computed(() => {
 
 .pr-card.cinematic .pr-no { font-size: clamp(1.2rem, 1rem + 1.4vw, 2rem); }
 .pr-card.cinematic .build { font-size: clamp(.92rem, .72rem + .7vw, 1.25rem); padding: .22em .7em; }
+.pr-card.cinematic .review-status { font-size: clamp(.92rem, .72rem + .7vw, 1.25rem); padding: .22em .7em; }
 .pr-card.cinematic .title { font-size: clamp(1.25rem, .95rem + 1.7vw, 2.35rem); line-height: 1.2; }
 .pr-card.cinematic .line-item { font-size: clamp(.9rem, .72rem + .6vw, 1.2rem); padding: .2em .72em; }
 .pr-card.cinematic .type-icon { font-size: 1em; }
 .pr-card.cinematic .avatar { width: clamp(20px, 1.4em, 28px); height: clamp(20px, 1.4em, 28px); }
-.pr-card.cinematic .detail-panel summary { font-size: clamp(.9rem, .72rem + .5vw, 1.15rem); }
+.pr-card.cinematic .detail-heading { font-size: clamp(.92rem, .74rem + .5vw, 1.15rem); }
 .pr-card.cinematic .detail-link { font-size: clamp(.92rem, .74rem + .5vw, 1.14rem); }
+.pr-card.cinematic .detail-text { font-size: clamp(.9rem, .72rem + .5vw, 1.14rem); }
 .pr-card.cinematic .detail-content {
   max-height: clamp(120px, 22vh, 280px);
   overflow-y: auto;
