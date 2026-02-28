@@ -264,6 +264,15 @@ const statusClass = computed(() => {
   min-height: 236px;
   min-width: 240px;
   box-shadow:0 8px 18px rgba(0,0,0,.24);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  will-change: transform;
+}
+
+.pr-card:not(.cinematic):hover,
+.pr-card:not(.cinematic):focus-within {
+  transform: translateY(-4px);
+  border-color: #4f75c8;
+  box-shadow: 0 14px 26px rgba(0, 0, 0, .35), 0 0 0 1px rgba(96, 165, 250, .25);
 }
 .top { display:flex; justify-content:space-between; align-items:center; }
 .pr-head { display: flex; align-items: center; gap: .45rem; }
@@ -442,6 +451,17 @@ const statusClass = computed(() => {
 @media (max-width: 640px) {
   .pr-card {
     min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-card {
+    transition: none;
+  }
+
+  .pr-card:not(.cinematic):hover,
+  .pr-card:not(.cinematic):focus-within {
+    transform: none;
   }
 }
 </style>
