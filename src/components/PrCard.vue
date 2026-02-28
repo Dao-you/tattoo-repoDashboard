@@ -492,6 +492,7 @@ const statusClass = computed(() => {
 
 @media (max-width: 640px) {
   .pr-card {
+    min-height: 0;
     min-width: 0;
   }
 }
