@@ -38,74 +38,6 @@
       </div>
     </header>
 
-    <section v-if="showTokenPanel" class="token-panel">
-      <label for="activity-display-mode" class="token-label">動態顯示模式</label>
-      <div class="token-controls refresh-controls">
-        <select id="activity-display-mode" v-model="activityDisplayMode" @change="applyActivityDisplayMode">
-          <option value="separate">分開顯示最新提交與最新留言（目前）</option>
-          <option value="latest">只顯示提交/留言之中最新的一筆</option>
-        </select>
-      </div>
-      <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
-
-      <label for="date-display-mode" class="token-label">更新時間顯示</label>
-      <div class="token-controls refresh-controls">
-        <select id="date-display-mode" v-model="dateDisplayMode" @change="applyDateDisplayMode">
-          <option value="smart">智慧時間（分鐘前 / 今天時間 / 幾天前 / 日期）</option>
-          <option value="full">完整時間（目前樣式）</option>
-        </select>
-      </div>
-      <p class="token-hint">預設為智慧時間，可切換回完整日期時間。</p>
-
-      <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
-      <div class="token-controls refresh-controls">
-        <input
-          id="refresh-interval"
-          v-model.number="refreshIntervalInput"
-          type="number"
-          :min="MIN_REFRESH_INTERVAL_SEC"
-          :max="MAX_REFRESH_INTERVAL_SEC"
-          step="1"
-        />
-        <button type="button" @click="applyRefreshInterval">套用更新頻率</button>
-      </div>
-      <p class="token-hint">可設定 {{ MIN_REFRESH_INTERVAL_SEC }} - {{ MAX_REFRESH_INTERVAL_SEC }} 秒。</p>
-
-      <label for="github-token" class="token-label">GitHub API Token（選填）</label>
-      <div class="token-controls">
-        <input
-          id="github-token"
-          v-model="tokenInput"
-          type="password"
-          placeholder="貼上新 token（不會自動回填已儲存值）"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <button type="button" @click="saveToken">儲存 Token</button>
-        <button type="button" class="secondary" @click="clearToken">清除</button>
-      </div>
-      <p class="token-hint">{{ tokenMessage }}</p>
-
-      <label class="token-label">動畫預覽</label>
-      <div class="token-controls">
-        <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
-      </div>
-      <label for="status-animation-close-delay" class="token-label">PR 狀態動畫自動關閉（秒）</label>
-      <div class="token-controls refresh-controls">
-        <input
-          id="status-animation-close-delay"
-          v-model.number="statusAnimationCloseDelayInputSec"
-          type="number"
-          :min="MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC"
-          :max="MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC"
-          step="1"
-        />
-        <button type="button" @click="applyStatusAnimationCloseDelay">套用</button>
-      </div>
-      <p class="token-hint">可設定 {{ MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC }} - {{ MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒（預設 {{ DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒）。</p>
-      <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
-    </section>
-
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="grid">
@@ -121,6 +53,89 @@
     </section>
 
     <Teleport to="body">
+      <Transition name="settings-modal">
+        <section
+          v-if="showTokenPanel"
+          class="settings-mask"
+          aria-live="polite"
+          @click="handleSettingsMaskClick"
+        >
+          <div class="settings-card" role="dialog" aria-modal="true" aria-label="設定">
+            <div class="settings-toolbar">
+              <h2>設定</h2>
+              <button type="button" class="close-btn" aria-label="關閉設定" @click="showTokenPanel = false">✕</button>
+            </div>
+            <div class="settings-content">
+              <label for="activity-display-mode" class="token-label">動態顯示模式</label>
+              <div class="token-controls refresh-controls">
+                <select id="activity-display-mode" v-model="activityDisplayMode" @change="applyActivityDisplayMode">
+                  <option value="separate">分開顯示最新提交與最新留言（目前）</option>
+                  <option value="latest">只顯示提交/留言之中最新的一筆</option>
+                </select>
+              </div>
+              <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
+
+              <label for="date-display-mode" class="token-label">更新時間顯示</label>
+              <div class="token-controls refresh-controls">
+                <select id="date-display-mode" v-model="dateDisplayMode" @change="applyDateDisplayMode">
+                  <option value="smart">智慧時間（分鐘前 / 今天時間 / 幾天前 / 日期）</option>
+                  <option value="full">完整時間（目前樣式）</option>
+                </select>
+              </div>
+              <p class="token-hint">預設為智慧時間，可切換回完整日期時間。</p>
+
+              <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
+              <div class="token-controls refresh-controls">
+                <input
+                  id="refresh-interval"
+                  v-model.number="refreshIntervalInput"
+                  type="number"
+                  :min="MIN_REFRESH_INTERVAL_SEC"
+                  :max="MAX_REFRESH_INTERVAL_SEC"
+                  step="1"
+                />
+                <button type="button" @click="applyRefreshInterval">套用更新頻率</button>
+              </div>
+              <p class="token-hint">可設定 {{ MIN_REFRESH_INTERVAL_SEC }} - {{ MAX_REFRESH_INTERVAL_SEC }} 秒。</p>
+
+              <label for="github-token" class="token-label">GitHub API Token（選填）</label>
+              <div class="token-controls">
+                <input
+                  id="github-token"
+                  v-model="tokenInput"
+                  type="password"
+                  placeholder="貼上新 token（不會自動回填已儲存值）"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button type="button" @click="saveToken">儲存 Token</button>
+                <button type="button" class="secondary" @click="clearToken">清除</button>
+              </div>
+              <p class="token-hint">{{ tokenMessage }}</p>
+
+              <label class="token-label">動畫預覽</label>
+              <div class="token-controls">
+                <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
+              </div>
+              <label for="status-animation-close-delay" class="token-label">PR 狀態動畫自動關閉（秒）</label>
+              <div class="token-controls refresh-controls">
+                <input
+                  id="status-animation-close-delay"
+                  v-model.number="statusAnimationCloseDelayInputSec"
+                  type="number"
+                  :min="MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC"
+                  :max="MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC"
+                  step="1"
+                />
+                <button type="button" @click="applyStatusAnimationCloseDelay">套用</button>
+              </div>
+              <p class="token-hint">可設定 {{ MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC }} - {{ MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒（預設 {{ DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒）。</p>
+              <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
+            </div>
+          </div>
+        </section>
+      </Transition>
+
       <Transition name="detail-modal">
         <section
           v-if="selectedPr"
@@ -344,6 +359,17 @@ function handleDetailMaskClick(event: MouseEvent) {
   closePrDetails();
 }
 
+function handleSettingsMaskClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  if (target.closest('.settings-card') || target.closest('.settings-btn')) {
+    return;
+  }
+
+  showTokenPanel.value = false;
+}
+
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape' && selectedPr.value) {
     closePrDetails();
@@ -565,7 +591,6 @@ code { color:#93c5fd; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
 .time { color:#cbd5e1; font-size:.78rem; padding: .25rem .55rem; }
-.token-panel { margin: -0.3rem 0 .9rem auto; width: min(560px, 100%); border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
 .token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
@@ -587,6 +612,72 @@ code { color:#93c5fd; }
   display: grid;
   place-items: center;
   padding: 1rem;
+}
+
+.settings-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.76);
+  backdrop-filter: blur(4px);
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.settings-card {
+  width: min(96vw, 1100px);
+  min-height: min(86vh, 860px);
+  max-height: 94vh;
+  border: 1px solid #2b3f72;
+  border-radius: 14px;
+  background: #111a33;
+  box-shadow: 0 22px 60px rgba(2, 6, 23, .62);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.settings-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .8rem;
+  padding: .85rem .95rem;
+  border-bottom: 1px solid rgba(59, 130, 246, .18);
+}
+
+.settings-toolbar h2 {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 1.02rem;
+}
+
+.settings-content {
+  padding: .9rem .95rem 1.1rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.settings-modal-enter-active,
+.settings-modal-leave-active {
+  transition: background-color .24s ease, backdrop-filter .24s ease;
+}
+
+.settings-modal-enter-from,
+.settings-modal-leave-to {
+  background: rgba(2, 6, 23, 0);
+  backdrop-filter: blur(0);
+}
+
+.settings-modal-enter-active .settings-card,
+.settings-modal-leave-active .settings-card {
+  transition: transform .24s ease, opacity .24s ease;
+}
+
+.settings-modal-enter-from .settings-card,
+.settings-modal-leave-to .settings-card {
+  transform: translateY(18px) scale(.985);
+  opacity: 0;
 }
 
 .detail-card-wrap {
@@ -670,6 +761,11 @@ code { color:#93c5fd; }
   .refresh-ring { width: 1.7rem; height: 1.7rem; }
   .chip { font-size: .72rem; padding: .16rem .42rem; }
   .settings-btn { width: 28px; height: 28px; }
-  .token-panel { margin-left: 0; }
+  .settings-card {
+    width: 100%;
+    min-height: calc(100vh - 1.1rem);
+    max-height: calc(100vh - 1.1rem);
+    border-radius: 12px;
+  }
 }
 </style>
