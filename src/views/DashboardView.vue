@@ -2,7 +2,10 @@
   <main class="dashboard">
     <header class="header">
       <div class="header-main">
-        <h1>Tattoo PR Dashboard</h1>
+        <h1>
+          <img class="header-logo" src="/logo.svg" alt="Tattoo logo" />
+          <span>Tattoo PR Dashboard</span>
+        </h1>
         <p><code>NTUT-NPC/tattoo</code> · {{ refreshIntervalSec }}s refresh</p>
       </div>
       <div class="meta" role="status" aria-live="polite">
@@ -297,7 +300,8 @@ onUnmounted(() => {
 .dashboard { max-width: 1200px; margin: 0 auto; padding: .75rem; }
 .header-main { min-width: 0; }
 .header { display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; }
-.header-main h1 { margin:0; color:#f8fafc; font-size: 1.45rem; }
+.header-main h1 { margin:0; color:#f8fafc; font-size: 1.45rem; display: flex; align-items: center; gap: .55rem; }
+.header-logo { width: 1.7rem; height: 1.7rem; flex: 0 0 auto; }
 .header-main p { margin:.2rem 0 0; color:#94a3b8; font-size: .9rem; }
 .refresh-ring {
   width: 2rem;
@@ -338,13 +342,13 @@ onUnmounted(() => {
 }
 code { color:#93c5fd; }
 .meta { display:flex; flex-wrap: wrap; justify-content: flex-end; align-items:center; gap:.4rem; }
-.settings-btn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
-.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; border-radius: 999px; }
+.settings-btn { width: 30px; height: 30px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
+.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; }
 .token-state.active { color: #86efac; }
 .chip { font-weight:700; border-radius:999px; padding:.2rem .6rem; font-size:.8rem; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
-.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; border-radius: 999px; }
+.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; }
 .token-panel { margin: -0.3rem 0 .9rem auto; width: min(560px, 100%); border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
@@ -441,6 +445,7 @@ code { color:#93c5fd; }
   .dashboard { padding: .55rem; }
   .header { flex-direction:column; align-items:stretch; gap: .45rem; margin-bottom: .7rem; }
   .header-main h1 { font-size: 1.08rem; line-height: 1.2; }
+  .header-logo { width: 1.35rem; height: 1.35rem; }
   .header-main p { display: none; }
   .meta { justify-content:flex-start; gap: .3rem; }
   .meta .time,
