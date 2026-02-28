@@ -117,7 +117,7 @@
           v-if="selectedPr"
           class="detail-mask"
           aria-live="polite"
-          @click.self="closePrDetails"
+          @click="handleDetailMaskClick"
         >
           <div class="detail-card-wrap">
             <div class="detail-toolbar">
@@ -308,6 +308,17 @@ function closePrDetails() {
   if (previewCloseTimer) clearTimeout(previewCloseTimer);
   previewEffectTimer = null;
   previewCloseTimer = null;
+}
+
+function handleDetailMaskClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  if (target.closest('.pr-card.cinematic') || target.closest('.close-btn')) {
+    return;
+  }
+
+  closePrDetails();
 }
 
 function handleEscape(event: KeyboardEvent) {
