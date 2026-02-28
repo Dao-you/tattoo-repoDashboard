@@ -2,7 +2,10 @@
   <main class="dashboard">
     <header class="header">
       <div class="header-main">
-        <h1>Tattoo PR Dashboard</h1>
+        <h1>
+          <img class="header-logo" src="/logo.svg" alt="Tattoo logo" />
+          <span>Tattoo PR Dashboard</span>
+        </h1>
         <p><code>NTUT-NPC/tattoo</code> · {{ refreshIntervalSec }}s refresh</p>
       </div>
       <div class="meta" role="status" aria-live="polite">
@@ -36,6 +39,15 @@
     </header>
 
     <section v-if="showTokenPanel" class="token-panel">
+      <label for="activity-display-mode" class="token-label">動態顯示模式</label>
+      <div class="token-controls refresh-controls">
+        <select id="activity-display-mode" v-model="activityDisplayMode" @change="applyActivityDisplayMode">
+          <option value="separate">分開顯示最新提交與最新留言（目前）</option>
+          <option value="latest">只顯示提交/留言之中最新的一筆</option>
+        </select>
+      </div>
+      <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
+
       <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
       <div class="token-controls refresh-controls">
         <input
@@ -64,6 +76,12 @@
         <button type="button" class="secondary" @click="clearToken">清除</button>
       </div>
       <p class="token-hint">{{ tokenMessage }}</p>
+
+      <label class="token-label">動畫預覽</label>
+      <div class="token-controls">
+        <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
+      </div>
+      <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
     </section>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -76,7 +94,7 @@
         :data-pr-id="pr.id"
         @click="openPrDetails(pr, $event)"
       >
-        <PrCard :pr="pr" />
+        <PrCard :pr="pr" :activity-display-mode="activityDisplayMode" />
       </div>
     </section>
 
@@ -110,6 +128,9 @@ const DEFAULT_REFRESH_INTERVAL_SEC = REFRESH_INTERVAL_MS / 1000;
 const MIN_REFRESH_INTERVAL_SEC = 5;
 const MAX_REFRESH_INTERVAL_SEC = 300;
 const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
+const ACTIVITY_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-activity-display-mode';
+
+type ActivityDisplayMode = 'separate' | 'latest';
 
 const prs = ref<PullRequestCard[]>([]);
 const selectedPr = ref<PullRequestCard | null>(null);
@@ -123,8 +144,11 @@ const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const activityDisplayMode = ref<ActivityDisplayMode>('separate');
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
+let previewEffectTimer: ReturnType<typeof setTimeout> | null = null;
+let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let nextRefreshAt: number | null = null;
 
 let refreshInFlight: Promise<void> | null = null;
@@ -151,6 +175,19 @@ function readRefreshIntervalFromStorage() {
   }
 
   return parsed;
+}
+
+function readActivityDisplayModeFromStorage(): ActivityDisplayMode {
+  const raw = window.localStorage.getItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY);
+  return raw === 'latest' ? 'latest' : 'separate';
+}
+
+function applyActivityDisplayMode() {
+  window.localStorage.setItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY, activityDisplayMode.value);
+  tokenMessage.value =
+    activityDisplayMode.value === 'latest'
+      ? '已切換為僅顯示提交/留言中最新的一筆。'
+      : '已切換為分開顯示最新提交與最新留言。';
 }
 
 function scheduleNextRefreshCountdown() {
@@ -221,10 +258,17 @@ function openPrDetails(pr: PullRequestCard, event: MouseEvent) {
   const target = event.target as HTMLElement | null;
   if (target?.closest('a, button')) return;
   selectedPr.value = pr;
+  detailShowEffect.value = false;
 }
+
 
 function closePrDetails() {
   selectedPr.value = null;
+  detailShowEffect.value = false;
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+  previewEffectTimer = null;
+  previewCloseTimer = null;
 }
 
 function handleEscape(event: KeyboardEvent) {
@@ -255,6 +299,48 @@ async function clearToken() {
   await refresh();
 }
 
+function buildCiSummary(pr: PullRequestCard): Array<{ name: string; result: 'success' | 'failure' }> {
+  if (!pr.ciStates.length) {
+    return [{ name: 'CI', result: 'success' }];
+  }
+
+  return pr.ciStates.map((item) => {
+    const conclusion = (item.conclusion ?? item.status ?? '').toLowerCase();
+    const result = conclusion === 'success' ? 'success' : 'failure';
+    return { name: item.name, result };
+  });
+}
+
+function previewLatestPrStatusAnimation() {
+  const latestPr = prs.value[0];
+  if (!latestPr) {
+    tokenMessage.value = '目前沒有可預覽的 PR。';
+    return;
+  }
+
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+
+  selectedPr.value = {
+    ...latestPr,
+    updatedAt: new Date().toISOString(),
+  };
+  detailEffect.value = 'ci_complete';
+  detailCiSummary.value = buildCiSummary(latestPr);
+  detailShowEffect.value = true;
+  tokenMessage.value = `已預覽 PR #${latestPr.number} 狀態更新動畫。`;
+
+  previewEffectTimer = setTimeout(() => {
+    detailShowEffect.value = false;
+    previewEffectTimer = null;
+  }, 2200);
+
+  previewCloseTimer = setTimeout(() => {
+    closePrDetails();
+    previewCloseTimer = null;
+  }, 2600);
+}
+
 function applyRefreshInterval() {
   if (!Number.isInteger(refreshIntervalInput.value)) {
     tokenMessage.value = '更新頻率需為整數秒。';
@@ -273,6 +359,7 @@ function applyRefreshInterval() {
 }
 
 onMounted(async () => {
+  activityDisplayMode.value = readActivityDisplayModeFromStorage();
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
 
@@ -291,6 +378,8 @@ onMounted(async () => {
 onUnmounted(() => {
   if (timer) clearInterval(timer);
   if (countdownTimer) clearInterval(countdownTimer);
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
   window.removeEventListener('keydown', handleEscape);
 });
 </script>
@@ -299,7 +388,8 @@ onUnmounted(() => {
 .dashboard { max-width: 1200px; margin: 0 auto; padding: .75rem; }
 .header-main { min-width: 0; }
 .header { display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; }
-.header-main h1 { margin:0; color:#f8fafc; font-size: 1.45rem; }
+.header-main h1 { margin:0; color:#f8fafc; font-size: 1.45rem; display: flex; align-items: center; gap: .55rem; }
+.header-logo { width: 1.7rem; height: 1.7rem; flex: 0 0 auto; }
 .header-main p { margin:.2rem 0 0; color:#94a3b8; font-size: .9rem; }
 .refresh-ring {
   width: 2rem;
@@ -340,17 +430,18 @@ onUnmounted(() => {
 }
 code { color:#93c5fd; }
 .meta { display:flex; flex-wrap: wrap; justify-content: flex-end; align-items:center; gap:.4rem; }
-.settings-btn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
-.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; border-radius: 999px; }
+.settings-btn { width: 30px; height: 30px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
+.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; }
 .token-state.active { color: #86efac; }
 .chip { font-weight:700; border-radius:999px; padding:.2rem .6rem; font-size:.8rem; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
-.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; border-radius: 999px; }
+.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; }
 .token-panel { margin: -0.3rem 0 .9rem auto; width: min(560px, 100%); border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
 .token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
+.token-controls select { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
 .refresh-controls input { max-width: 190px; min-width: 0; }
 .token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
 .token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
@@ -392,25 +483,15 @@ code { color:#93c5fd; }
 
 .detail-modal-enter-active .detail-card-wrap,
 .detail-modal-leave-active .detail-card-wrap {
-  transition: opacity .34s ease, transform .4s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.detail-modal-enter-from {
-  background: rgba(2, 6, 23, 0);
+  transition: transform .46s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .detail-modal-enter-from .detail-card-wrap {
-  opacity: 0;
-  transform: translateY(-56px);
-}
-
-.detail-modal-leave-to {
-  background: rgba(2, 6, 23, 0);
+  transform: translateY(-110vh);
 }
 
 .detail-modal-leave-to .detail-card-wrap {
-  opacity: 0;
-  transform: translateY(96px);
+  transform: translateY(110vh);
 }
 
 .showcase-card.enter {
@@ -447,6 +528,7 @@ code { color:#93c5fd; }
   .dashboard { padding: .55rem; }
   .header { flex-direction:column; align-items:stretch; gap: .45rem; margin-bottom: .7rem; }
   .header-main h1 { font-size: 1.08rem; line-height: 1.2; }
+  .header-logo { width: 1.35rem; height: 1.35rem; }
   .header-main p { display: none; }
   .meta { justify-content:flex-start; gap: .3rem; }
   .meta .time,

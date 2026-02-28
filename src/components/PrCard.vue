@@ -26,15 +26,20 @@
         <img :src="pr.author.avatarUrl" :alt="pr.author.login" class="avatar" />
         <span>{{ pr.author.login }}</span>
       </a>
-      <div class="line-item" v-if="pr.latestCommit">
+      <div class="line-item" v-if="activityDisplayMode === 'separate' && pr.latestCommit">
         <span class="type-icon" aria-hidden="true">🧾</span>
         <img :src="pr.latestCommit.authorAvatarUrl" :alt="pr.latestCommit.authorLogin" class="avatar" />
         <span>{{ pr.latestCommit.authorLogin }}</span>
       </div>
-      <div class="line-item" v-if="pr.latestComment">
+      <div class="line-item" v-if="activityDisplayMode === 'separate' && pr.latestComment">
         <span class="type-icon" aria-hidden="true">💬</span>
         <img :src="pr.latestComment.authorAvatarUrl" :alt="pr.latestComment.authorLogin" class="avatar" />
         <span>{{ pr.latestComment.authorLogin }}</span>
+      </div>
+      <div class="line-item" v-if="activityDisplayMode === 'latest' && latestActivity">
+        <span class="type-icon" aria-hidden="true">{{ latestActivity.type === 'commit' ? '🧾' : '💬' }}</span>
+        <img :src="latestActivity.authorAvatarUrl" :alt="latestActivity.authorLogin" class="avatar" />
+        <span>{{ latestActivity.authorLogin }}</span>
       </div>
       <div class="line-item issue-pill" v-if="pr.linkedIssue">Issue #{{ pr.linkedIssue }}</div>
       <div class="line-item dim">{{ formatDate(pr.updatedAt) }}</div>
@@ -49,7 +54,7 @@
       <div class="detail-content">
         <p class="detail-text">更新時間：{{ formatDate(pr.updatedAt) }}</p>
         <a
-          v-if="pr.latestCommit"
+          v-if="activityDisplayMode === 'separate' && pr.latestCommit"
           :href="pr.latestCommit.url"
           target="_blank"
           rel="noreferrer"
@@ -59,7 +64,7 @@
           最新 commit：{{ pr.latestCommit.message }}
         </a>
         <a
-          v-if="pr.latestComment"
+          v-if="activityDisplayMode === 'separate' && pr.latestComment"
           :href="pr.latestComment.url"
           target="_blank"
           rel="noreferrer"
@@ -68,7 +73,17 @@
         >
           最新留言：{{ truncate(pr.latestComment.body.replace(/\n/g, ' '), 200) }}
         </a>
-
+        <a
+          v-if="activityDisplayMode === 'latest' && latestActivity"
+          :href="latestActivity.url"
+          target="_blank"
+          rel="noreferrer"
+          class="detail-link"
+          :title="latestActivity.preview"
+        >
+          最新動態（{{ latestActivity.type === 'commit' ? '提交' : '留言' }}）：
+          {{ truncate(latestActivity.preview.replace(/\n/g, ' '), 200) }}
+        </a>
         <div v-if="pr.ciStates.length" class="detail-ci-list">
           <template v-for="item in pr.ciStates" :key="item.name">
             <a
@@ -122,12 +137,14 @@ type ShowcaseEffect = 'new_pr' | 'ci_complete' | 'merged';
 const props = withDefaults(
   defineProps<{
     pr: PullRequestCard;
+    activityDisplayMode?: 'separate' | 'latest';
     cinematic?: boolean;
     effect?: ShowcaseEffect;
     ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
     showEffect?: boolean;
   }>(),
   {
+    activityDisplayMode: 'separate',
     cinematic: false,
     effect: 'new_pr',
     ciSummary: () => [],
@@ -135,12 +152,63 @@ const props = withDefaults(
   },
 );
 
-const { pr } = toRefs(props);
+const { pr, activityDisplayMode } = toRefs(props);
 
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '未知時間' : date.toLocaleString();
 }
+
+function toTimestamp(value: string): number {
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+const latestActivity = computed(() => {
+  const commit = pr.value.latestCommit;
+  const comment = pr.value.latestComment;
+
+  if (!commit && !comment) return null;
+  if (!commit && comment) {
+    return {
+      type: 'comment' as const,
+      authorLogin: comment.authorLogin,
+      authorAvatarUrl: comment.authorAvatarUrl,
+      url: comment.url,
+      preview: comment.body,
+    };
+  }
+  if (commit && !comment) {
+    return {
+      type: 'commit' as const,
+      authorLogin: commit.authorLogin,
+      authorAvatarUrl: commit.authorAvatarUrl,
+      url: commit.url,
+      preview: commit.message,
+    };
+  }
+
+  const commitTs = toTimestamp(commit.authoredAt);
+  const commentTs = toTimestamp(comment.updatedAt);
+
+  if (commentTs >= commitTs) {
+    return {
+      type: 'comment' as const,
+      authorLogin: comment.authorLogin,
+      authorAvatarUrl: comment.authorAvatarUrl,
+      url: comment.url,
+      preview: comment.body,
+    };
+  }
+
+  return {
+    type: 'commit' as const,
+    authorLogin: commit.authorLogin,
+    authorAvatarUrl: commit.authorAvatarUrl,
+    url: commit.url,
+    preview: commit.message,
+  };
+});
 
 const statusLabelMap = {
   draft: 'draft',
