@@ -591,6 +591,7 @@ code { color:#93c5fd; }
   max-height: 92vh;
   transform: translate(-50%, -50%);
   transform-origin: center;
+  z-index: 1;
 }
 
 .showcase-card.enter {
@@ -601,6 +602,7 @@ code { color:#93c5fd; }
   position: absolute;
   inset: 0;
   overflow: hidden;
+  z-index: 2;
 }
 
 .confetti {
