@@ -538,7 +538,13 @@ code { color:#93c5fd; }
 
 .detail-modal-enter-active,
 .detail-modal-leave-active {
-  transition: background-color .34s ease;
+  transition: background-color .34s ease, backdrop-filter .34s ease;
+}
+
+.detail-modal-enter-from,
+.detail-modal-leave-to {
+  background: rgba(2, 6, 23, 0);
+  backdrop-filter: blur(0);
 }
 
 .detail-modal-enter-active .detail-card-wrap,
