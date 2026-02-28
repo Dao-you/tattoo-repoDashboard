@@ -64,6 +64,12 @@
         <button type="button" class="secondary" @click="clearToken">清除</button>
       </div>
       <p class="token-hint">{{ tokenMessage }}</p>
+
+      <label class="token-label">動畫預覽</label>
+      <div class="token-controls">
+        <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
+      </div>
+      <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
     </section>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -90,7 +96,13 @@
         >
           <div class="detail-card-wrap">
             <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
-            <PrCard :pr="selectedPr" cinematic :show-effect="false" />
+            <PrCard
+              :pr="selectedPr"
+              cinematic
+              :effect="detailEffect"
+              :ci-summary="detailCiSummary"
+              :show-effect="detailShowEffect"
+            />
           </div>
         </section>
       </Transition>
@@ -121,8 +133,13 @@ const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const detailEffect = ref<'new_pr' | 'ci_complete' | 'merged'>('ci_complete');
+const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' }>>([]);
+const detailShowEffect = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
+let previewEffectTimer: ReturnType<typeof setTimeout> | null = null;
+let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let nextRefreshAt: number | null = null;
 
 let refreshInFlight: Promise<void> | null = null;
@@ -219,10 +236,17 @@ function openPrDetails(pr: PullRequestCard, event: MouseEvent) {
   const target = event.target as HTMLElement | null;
   if (target?.closest('a, button')) return;
   selectedPr.value = pr;
+  detailShowEffect.value = false;
 }
+
 
 function closePrDetails() {
   selectedPr.value = null;
+  detailShowEffect.value = false;
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+  previewEffectTimer = null;
+  previewCloseTimer = null;
 }
 
 function handleEscape(event: KeyboardEvent) {
@@ -251,6 +275,48 @@ async function clearToken() {
   hasTokenSaved.value = false;
   tokenMessage.value = '已清除 token，後續改為匿名請求。';
   await refresh();
+}
+
+function buildCiSummary(pr: PullRequestCard): Array<{ name: string; result: 'success' | 'failure' }> {
+  if (!pr.ciStates.length) {
+    return [{ name: 'CI', result: 'success' }];
+  }
+
+  return pr.ciStates.map((item) => {
+    const conclusion = (item.conclusion ?? item.status ?? '').toLowerCase();
+    const result = conclusion === 'success' ? 'success' : 'failure';
+    return { name: item.name, result };
+  });
+}
+
+function previewLatestPrStatusAnimation() {
+  const latestPr = prs.value[0];
+  if (!latestPr) {
+    tokenMessage.value = '目前沒有可預覽的 PR。';
+    return;
+  }
+
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+
+  selectedPr.value = {
+    ...latestPr,
+    updatedAt: new Date().toISOString(),
+  };
+  detailEffect.value = 'ci_complete';
+  detailCiSummary.value = buildCiSummary(latestPr);
+  detailShowEffect.value = true;
+  tokenMessage.value = `已預覽 PR #${latestPr.number} 狀態更新動畫。`;
+
+  previewEffectTimer = setTimeout(() => {
+    detailShowEffect.value = false;
+    previewEffectTimer = null;
+  }, 2200);
+
+  previewCloseTimer = setTimeout(() => {
+    closePrDetails();
+    previewCloseTimer = null;
+  }, 2600);
 }
 
 function applyRefreshInterval() {
@@ -289,6 +355,8 @@ onMounted(async () => {
 onUnmounted(() => {
   if (timer) clearInterval(timer);
   if (countdownTimer) clearInterval(countdownTimer);
+  if (previewEffectTimer) clearTimeout(previewEffectTimer);
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
   window.removeEventListener('keydown', handleEscape);
 });
 </script>
@@ -376,32 +444,17 @@ code { color:#93c5fd; }
   z-index: 1;
 }
 
-.detail-modal-enter-active,
-.detail-modal-leave-active {
-  transition: background-color .34s ease;
-}
-
 .detail-modal-enter-active .detail-card-wrap,
 .detail-modal-leave-active .detail-card-wrap {
-  transition: opacity .34s ease, transform .4s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.detail-modal-enter-from {
-  background: rgba(2, 6, 23, 0);
+  transition: transform .46s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .detail-modal-enter-from .detail-card-wrap {
-  opacity: 0;
-  transform: translateY(-56px);
-}
-
-.detail-modal-leave-to {
-  background: rgba(2, 6, 23, 0);
+  transform: translateY(-110vh);
 }
 
 .detail-modal-leave-to .detail-card-wrap {
-  opacity: 0;
-  transform: translateY(96px);
+  transform: translateY(110vh);
 }
 
 .showcase-card.enter {
