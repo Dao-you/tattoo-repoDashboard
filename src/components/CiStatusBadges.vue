@@ -81,8 +81,10 @@ function statusClass(item: CiItem) {
 .ci-item {
   display:inline-flex;
   align-items:center;
+  gap:0;
   flex:0 0 auto;
   width:1.45rem;
+  max-width:min(12rem, 100%);
   height:1.45rem;
   border-radius:8px;
   text-decoration:none;
@@ -90,13 +92,13 @@ function statusClass(item: CiItem) {
   border:1px solid #30406f;
   overflow:hidden;
   white-space:nowrap;
-  transition:width .2s ease, padding .2s ease, background-color .2s ease;
+  padding:0;
+  transition:width .28s cubic-bezier(.22, 1, .36, 1), background-color .2s ease;
 }
 
 .ci-item:hover,
 .ci-item:focus-visible {
   width:min(12rem, 100%);
-  padding:0 .45rem;
   background:#1f2b50;
 }
 
@@ -120,15 +122,18 @@ function statusClass(item: CiItem) {
 .ci-item.is-default { color:#60a5fa; }
 
 .ci-name {
+  display:inline-block;
+  margin-left:.05rem;
+  padding-right:.45rem;
   opacity:0;
-  max-width:0;
-  transition:opacity .18s ease, max-width .2s ease;
+  transform:translateX(-.65rem);
+  transition:opacity .2s ease, transform .28s cubic-bezier(.22, 1, .36, 1);
 }
 
 .ci-item:hover .ci-name,
 .ci-item:focus-visible .ci-name {
   opacity:1;
-  max-width:9rem;
+  transform:translateX(0);
 }
 .empty { font-size:.78rem; color:#94a3b8; }
 </style>
