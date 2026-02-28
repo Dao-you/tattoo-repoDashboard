@@ -149,6 +149,7 @@ const props = withDefaults(
   defineProps<{
     pr: PullRequestCard;
     activityDisplayMode?: 'separate' | 'latest';
+    dateDisplayMode?: 'smart' | 'full';
     cinematic?: boolean;
     effect?: ShowcaseEffect;
     ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
@@ -156,6 +157,7 @@ const props = withDefaults(
   }>(),
   {
     activityDisplayMode: 'separate',
+    dateDisplayMode: 'smart',
     cinematic: false,
     effect: 'new_pr',
     ciSummary: () => [],
@@ -163,7 +165,7 @@ const props = withDefaults(
   },
 );
 
-const { pr, activityDisplayMode } = toRefs(props);
+const { pr, activityDisplayMode, dateDisplayMode } = toRefs(props);
 const confettiStyles = Array.from({ length: 18 }, (_, index) => ({
   key: index,
   style: {
@@ -175,7 +177,38 @@ const confettiStyles = Array.from({ length: 18 }, (_, index) => ({
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '未知時間' : date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return '未知時間';
+  if (dateDisplayMode.value === 'full') return date.toLocaleString();
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+
+  if (diffMs < 0) {
+    return date.toLocaleString();
+  }
+
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 60) {
+    return `${Math.max(1, diffMinutes)} 分鐘前`;
+  }
+
+  const isSameDay = now.getFullYear() === date.getFullYear()
+    && now.getMonth() === date.getMonth()
+    && now.getDate() === date.getDate();
+  if (isSameDay) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  const diffDays = Math.floor(diffMs / 86_400_000);
+  if (diffDays < 7) {
+    return `${Math.max(1, diffDays)} 天前`;
+  }
+
+  if (now.getFullYear() === date.getFullYear()) {
+    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function toTimestamp(value: string): number {

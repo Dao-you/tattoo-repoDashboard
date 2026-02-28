@@ -48,6 +48,15 @@
       </div>
       <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
 
+      <label for="date-display-mode" class="token-label">更新時間顯示</label>
+      <div class="token-controls refresh-controls">
+        <select id="date-display-mode" v-model="dateDisplayMode" @change="applyDateDisplayMode">
+          <option value="smart">智慧時間（分鐘前 / 今天時間 / 幾天前 / 日期）</option>
+          <option value="full">完整時間（目前樣式）</option>
+        </select>
+      </div>
+      <p class="token-hint">預設為智慧時間，可切換回完整日期時間。</p>
+
       <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
       <div class="token-controls refresh-controls">
         <input
@@ -107,7 +116,7 @@
         :data-pr-id="pr.id"
         @click="openPrDetails(pr, $event)"
       >
-        <PrCard :pr="pr" :activity-display-mode="activityDisplayMode" />
+        <PrCard :pr="pr" :activity-display-mode="activityDisplayMode" :date-display-mode="dateDisplayMode" />
       </div>
     </section>
 
@@ -129,6 +138,7 @@
               :effect="detailEffect"
               :ci-summary="detailCiSummary"
               :show-effect="detailShowEffect"
+              :date-display-mode="dateDisplayMode"
             />
           </div>
         </section>
@@ -148,12 +158,14 @@ const MIN_REFRESH_INTERVAL_SEC = 5;
 const MAX_REFRESH_INTERVAL_SEC = 300;
 const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
 const ACTIVITY_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-activity-display-mode';
+const DATE_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-date-display-mode';
 const DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC = 8;
 const MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC = 3;
 const MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC = 20;
 const STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY = 'tattoo-dashboard-pr-status-close-delay-sec';
 
 type ActivityDisplayMode = 'separate' | 'latest';
+type DateDisplayMode = 'smart' | 'full';
 
 const prs = ref<PullRequestCard[]>([]);
 const selectedPr = ref<PullRequestCard | null>(null);
@@ -170,6 +182,7 @@ const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const statusAnimationCloseDelaySec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC);
 const statusAnimationCloseDelayInputSec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC);
 const activityDisplayMode = ref<ActivityDisplayMode>('separate');
+const dateDisplayMode = ref<DateDisplayMode>('smart');
 const detailEffect = ref<'new_pr' | 'ci_complete' | 'merged'>('ci_complete');
 const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' }>>([]);
 const detailShowEffect = ref(false);
@@ -209,6 +222,11 @@ function readActivityDisplayModeFromStorage(): ActivityDisplayMode {
   return raw === 'latest' ? 'latest' : 'separate';
 }
 
+function readDateDisplayModeFromStorage(): DateDisplayMode {
+  const raw = window.localStorage.getItem(DATE_DISPLAY_MODE_STORAGE_KEY);
+  return raw === 'full' ? 'full' : 'smart';
+}
+
 function readStatusAnimationCloseDelayFromStorage() {
   const raw = window.localStorage.getItem(STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY);
   const parsed = Number(raw);
@@ -226,6 +244,14 @@ function applyActivityDisplayMode() {
     activityDisplayMode.value === 'latest'
       ? '已切換為僅顯示提交/留言中最新的一筆。'
       : '已切換為分開顯示最新提交與最新留言。';
+}
+
+function applyDateDisplayMode() {
+  window.localStorage.setItem(DATE_DISPLAY_MODE_STORAGE_KEY, dateDisplayMode.value);
+  tokenMessage.value =
+    dateDisplayMode.value === 'full'
+      ? '已切換為完整日期時間顯示。'
+      : '已切換為智慧時間顯示。';
 }
 
 function scheduleNextRefreshCountdown() {
@@ -420,6 +446,7 @@ function applyRefreshInterval() {
 
 onMounted(async () => {
   activityDisplayMode.value = readActivityDisplayModeFromStorage();
+  dateDisplayMode.value = readDateDisplayModeFromStorage();
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
   statusAnimationCloseDelaySec.value = readStatusAnimationCloseDelayFromStorage();
