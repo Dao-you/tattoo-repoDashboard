@@ -36,6 +36,15 @@
     </header>
 
     <section v-if="showTokenPanel" class="token-panel">
+      <label for="activity-display-mode" class="token-label">動態顯示模式</label>
+      <div class="token-controls refresh-controls">
+        <select id="activity-display-mode" v-model="activityDisplayMode" @change="applyActivityDisplayMode">
+          <option value="separate">分開顯示最新提交與最新留言（目前）</option>
+          <option value="latest">只顯示提交/留言之中最新的一筆</option>
+        </select>
+      </div>
+      <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
+
       <label for="refresh-interval" class="token-label">更新頻率（秒）</label>
       <div class="token-controls refresh-controls">
         <input
@@ -76,7 +85,7 @@
         :data-pr-id="pr.id"
         @click="openPrDetails(pr, $event)"
       >
-        <PrCard :pr="pr" />
+        <PrCard :pr="pr" :activity-display-mode="activityDisplayMode" />
       </div>
     </section>
 
@@ -90,7 +99,12 @@
         >
           <div class="detail-card-wrap">
             <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
-            <PrCard :pr="selectedPr" cinematic :show-effect="false" />
+            <PrCard
+              :pr="selectedPr"
+              :activity-display-mode="activityDisplayMode"
+              cinematic
+              :show-effect="false"
+            />
           </div>
         </section>
       </Transition>
@@ -108,6 +122,9 @@ const DEFAULT_REFRESH_INTERVAL_SEC = REFRESH_INTERVAL_MS / 1000;
 const MIN_REFRESH_INTERVAL_SEC = 5;
 const MAX_REFRESH_INTERVAL_SEC = 300;
 const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
+const ACTIVITY_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-activity-display-mode';
+
+type ActivityDisplayMode = 'separate' | 'latest';
 
 const prs = ref<PullRequestCard[]>([]);
 const selectedPr = ref<PullRequestCard | null>(null);
@@ -121,6 +138,7 @@ const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const activityDisplayMode = ref<ActivityDisplayMode>('separate');
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let nextRefreshAt: number | null = null;
@@ -149,6 +167,19 @@ function readRefreshIntervalFromStorage() {
   }
 
   return parsed;
+}
+
+function readActivityDisplayModeFromStorage(): ActivityDisplayMode {
+  const raw = window.localStorage.getItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY);
+  return raw === 'latest' ? 'latest' : 'separate';
+}
+
+function applyActivityDisplayMode() {
+  window.localStorage.setItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY, activityDisplayMode.value);
+  tokenMessage.value =
+    activityDisplayMode.value === 'latest'
+      ? '已切換為僅顯示提交/留言中最新的一筆。'
+      : '已切換為分開顯示最新提交與最新留言。';
 }
 
 function scheduleNextRefreshCountdown() {
@@ -271,6 +302,7 @@ function applyRefreshInterval() {
 }
 
 onMounted(async () => {
+  activityDisplayMode.value = readActivityDisplayModeFromStorage();
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
 
@@ -349,6 +381,7 @@ code { color:#93c5fd; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
 .token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
+.token-controls select { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
 .refresh-controls input { max-width: 190px; min-width: 0; }
 .token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
 .token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
