@@ -102,9 +102,6 @@
     </section>
 
     <div v-if="cinematic && showEffect" class="cinematic-overlay" aria-live="polite">
-      <div v-if="effect === 'ci_complete'" class="cinematic-confetti" aria-hidden="true">
-        <span v-for="item in confettiStyles" :key="item.key" class="confetti" :style="item.style" />
-      </div>
 
       <p v-if="effect === 'new_pr'" class="effect-title">🚀 New PR arrived</p>
       <p v-else-if="effect === 'ci_complete'" class="effect-title">CI 全部完成</p>
@@ -127,6 +124,16 @@
         <span>main</span>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="cinematic && showEffect && effect === 'ci_complete'"
+        class="cinematic-confetti"
+        aria-hidden="true"
+      >
+        <span v-for="item in confettiStyles" :key="item.key" class="confetti" :style="item.style" />
+      </div>
+    </Teleport>
   </article>
 </template>
 
@@ -389,9 +396,11 @@ const statusClass = computed(() => {
 }
 
 .cinematic-confetti {
-  position: absolute;
+  position: fixed;
   inset: 0;
   overflow: hidden;
+  pointer-events: none;
+  z-index: 85;
 }
 
 .confetti {

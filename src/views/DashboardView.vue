@@ -175,7 +175,6 @@ const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' 
 const detailShowEffect = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
-let previewEffectTimer: ReturnType<typeof setTimeout> | null = null;
 let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let nextRefreshAt: number | null = null;
 
@@ -304,9 +303,7 @@ function openPrDetails(pr: PullRequestCard, event: MouseEvent) {
 function closePrDetails() {
   selectedPr.value = null;
   detailShowEffect.value = false;
-  if (previewEffectTimer) clearTimeout(previewEffectTimer);
   if (previewCloseTimer) clearTimeout(previewCloseTimer);
-  previewEffectTimer = null;
   previewCloseTimer = null;
 }
 
@@ -357,7 +354,6 @@ function previewLatestPrStatusAnimation() {
     return;
   }
 
-  if (previewEffectTimer) clearTimeout(previewEffectTimer);
   if (previewCloseTimer) clearTimeout(previewCloseTimer);
 
   selectedPr.value = {
@@ -368,11 +364,6 @@ function previewLatestPrStatusAnimation() {
   detailCiSummary.value = buildCiSummary(latestPr);
   detailShowEffect.value = true;
   tokenMessage.value = `已預覽 PR #${latestPr.number} 狀態更新動畫。`;
-
-  previewEffectTimer = setTimeout(() => {
-    detailShowEffect.value = false;
-    previewEffectTimer = null;
-  }, 2200);
 
   previewCloseTimer = setTimeout(() => {
     closePrDetails();
@@ -438,7 +429,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (timer) clearInterval(timer);
   if (countdownTimer) clearInterval(countdownTimer);
-  if (previewEffectTimer) clearTimeout(previewEffectTimer);
   if (previewCloseTimer) clearTimeout(previewCloseTimer);
   window.removeEventListener('keydown', handleEscape);
 });
