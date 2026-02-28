@@ -81,17 +81,19 @@
     </section>
 
     <Teleport to="body">
-      <section
-        v-if="selectedPr"
-        class="detail-mask"
-        aria-live="polite"
-        @click.self="closePrDetails"
-      >
-        <div class="detail-card-wrap">
-          <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
-          <PrCard :pr="selectedPr" cinematic :show-effect="false" />
-        </div>
-      </section>
+      <Transition name="detail-modal">
+        <section
+          v-if="selectedPr"
+          class="detail-mask"
+          aria-live="polite"
+          @click.self="closePrDetails"
+        >
+          <div class="detail-card-wrap">
+            <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
+            <PrCard :pr="selectedPr" cinematic :show-effect="false" />
+          </div>
+        </section>
+      </Transition>
     </Teleport>
   </main>
 </template>
@@ -369,9 +371,37 @@ code { color:#93c5fd; }
 .detail-card-wrap {
   width: min(95vw, 1120px);
   max-height: 92vh;
-  transform: translate(-50%, -50%);
+  position: relative;
   transform-origin: center;
   z-index: 1;
+}
+
+.detail-modal-enter-active,
+.detail-modal-leave-active {
+  transition: background-color .34s ease;
+}
+
+.detail-modal-enter-active .detail-card-wrap,
+.detail-modal-leave-active .detail-card-wrap {
+  transition: opacity .34s ease, transform .4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.detail-modal-enter-from {
+  background: rgba(2, 6, 23, 0);
+}
+
+.detail-modal-enter-from .detail-card-wrap {
+  opacity: 0;
+  transform: translateY(-56px);
+}
+
+.detail-modal-leave-to {
+  background: rgba(2, 6, 23, 0);
+}
+
+.detail-modal-leave-to .detail-card-wrap {
+  opacity: 0;
+  transform: translateY(96px);
 }
 
 .showcase-card.enter {
