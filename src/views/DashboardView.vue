@@ -23,13 +23,13 @@
           <span class="refresh-ring-number">{{ refreshCountdownSec }}</span>
         </span>
         <span :class="['chip', isUpdating ? 'updating' : 'ok']">{{ isUpdating ? '更新中' : '已同步' }}</span>
-        <span class="token-state" :class="{ active: hasTokenSaved }">
+        <span class="token-state meta-pill" :class="{ active: hasTokenSaved }">
           {{ hasTokenSaved ? 'Token ON' : '匿名' }}
         </span>
-        <span class="time">{{ lastUpdatedText }}</span>
+        <span class="time meta-pill">{{ lastUpdatedText }}</span>
         <button
           type="button"
-          class="settings-btn"
+          class="settings-btn meta-pill"
           :aria-label="showTokenPanel ? '關閉 Token 設定' : '開啟 Token 設定'"
           @click="showTokenPanel = !showTokenPanel"
         >
@@ -489,14 +489,54 @@ onUnmounted(() => {
   line-height: 1;
 }
 code { color:#93c5fd; }
-.meta { display:flex; flex-wrap: wrap; justify-content: flex-end; align-items:center; gap:.4rem; }
-.settings-btn { width: 30px; height: 30px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
-.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; }
-.token-state.active { color: #86efac; }
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .45rem;
+  padding: .3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(71, 85, 105, .5);
+  background: rgba(15, 23, 42, .55);
+}
+
+.meta-pill {
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: linear-gradient(135deg, rgba(15, 23, 42, .95), rgba(30, 41, 59, .9));
+  box-shadow: inset 0 1px 0 rgba(148, 163, 184, .12);
+}
+
+.settings-btn {
+  width: 31px;
+  height: 31px;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: .95rem;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  transition: border-color .2s ease, transform .2s ease, color .2s ease;
+}
+
+.settings-btn:hover {
+  border-color: #60a5fa;
+  color: #dbeafe;
+  transform: translateY(-1px);
+}
+
+.settings-btn:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.token-state { font-size: .72rem; color: #94a3b8; padding: .25rem .52rem; }
+.token-state.active { color: #86efac; border-color: rgba(34, 197, 94, .45); }
 .chip { font-weight:700; border-radius:999px; padding:.2rem .6rem; font-size:.8rem; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
-.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; }
+.time { color:#cbd5e1; font-size:.78rem; padding: .25rem .55rem; }
 .token-panel { margin: -0.3rem 0 .9rem auto; width: min(560px, 100%); border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
