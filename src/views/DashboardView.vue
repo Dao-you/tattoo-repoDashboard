@@ -81,6 +81,19 @@
       <div class="token-controls">
         <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
       </div>
+      <label for="status-animation-close-delay" class="token-label">PR 狀態動畫自動關閉（秒）</label>
+      <div class="token-controls refresh-controls">
+        <input
+          id="status-animation-close-delay"
+          v-model.number="statusAnimationCloseDelayInputSec"
+          type="number"
+          :min="MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC"
+          :max="MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC"
+          step="1"
+        />
+        <button type="button" @click="applyStatusAnimationCloseDelay">套用</button>
+      </div>
+      <p class="token-hint">可設定 {{ MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC }} - {{ MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒（預設 {{ DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒）。</p>
       <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
     </section>
 
@@ -110,7 +123,13 @@
             <div class="detail-toolbar">
               <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
             </div>
-            <PrCard :pr="selectedPr" cinematic :show-effect="false" />
+            <PrCard
+              :pr="selectedPr"
+              cinematic
+              :effect="detailEffect"
+              :ci-summary="detailCiSummary"
+              :show-effect="detailShowEffect"
+            />
           </div>
         </section>
       </Transition>
@@ -129,6 +148,10 @@ const MIN_REFRESH_INTERVAL_SEC = 5;
 const MAX_REFRESH_INTERVAL_SEC = 300;
 const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
 const ACTIVITY_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-activity-display-mode';
+const DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC = 8;
+const MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC = 3;
+const MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC = 20;
+const STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY = 'tattoo-dashboard-pr-status-close-delay-sec';
 
 type ActivityDisplayMode = 'separate' | 'latest';
 
@@ -144,7 +167,12 @@ const tokenMessage = ref('目前未設定 token，將使用匿名請求。');
 const refreshIntervalSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshIntervalInput = ref(DEFAULT_REFRESH_INTERVAL_SEC);
 const refreshCountdownSec = ref(DEFAULT_REFRESH_INTERVAL_SEC);
+const statusAnimationCloseDelaySec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC);
+const statusAnimationCloseDelayInputSec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC);
 const activityDisplayMode = ref<ActivityDisplayMode>('separate');
+const detailEffect = ref<'new_pr' | 'ci_complete' | 'merged'>('ci_complete');
+const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' }>>([]);
+const detailShowEffect = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let previewEffectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -180,6 +208,17 @@ function readRefreshIntervalFromStorage() {
 function readActivityDisplayModeFromStorage(): ActivityDisplayMode {
   const raw = window.localStorage.getItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY);
   return raw === 'latest' ? 'latest' : 'separate';
+}
+
+function readStatusAnimationCloseDelayFromStorage() {
+  const raw = window.localStorage.getItem(STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY);
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) return DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC;
+  if (parsed < MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC || parsed > MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC) {
+    return DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC;
+  }
+
+  return parsed;
 }
 
 function applyActivityDisplayMode() {
@@ -338,7 +377,26 @@ function previewLatestPrStatusAnimation() {
   previewCloseTimer = setTimeout(() => {
     closePrDetails();
     previewCloseTimer = null;
-  }, 2600);
+  }, statusAnimationCloseDelaySec.value * 1000);
+}
+
+function applyStatusAnimationCloseDelay() {
+  if (!Number.isInteger(statusAnimationCloseDelayInputSec.value)) {
+    tokenMessage.value = 'PR 狀態動畫自動關閉需為整數秒。';
+    return;
+  }
+
+  if (
+    statusAnimationCloseDelayInputSec.value < MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC
+    || statusAnimationCloseDelayInputSec.value > MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC
+  ) {
+    tokenMessage.value = `PR 狀態動畫自動關閉需介於 ${MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC}-${MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC} 秒。`;
+    return;
+  }
+
+  statusAnimationCloseDelaySec.value = statusAnimationCloseDelayInputSec.value;
+  window.localStorage.setItem(STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY, String(statusAnimationCloseDelaySec.value));
+  tokenMessage.value = `已套用 PR 狀態動畫自動關閉：${statusAnimationCloseDelaySec.value} 秒。`;
 }
 
 function applyRefreshInterval() {
@@ -362,6 +420,8 @@ onMounted(async () => {
   activityDisplayMode.value = readActivityDisplayModeFromStorage();
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
+  statusAnimationCloseDelaySec.value = readStatusAnimationCloseDelayFromStorage();
+  statusAnimationCloseDelayInputSec.value = statusAnimationCloseDelaySec.value;
 
   hasTokenSaved.value = hasSavedGithubToken();
   tokenMessage.value = hasTokenSaved.value
