@@ -1,26 +1,29 @@
 <template>
   <main class="dashboard">
     <header class="header">
-      <div>
-        <h1>
-          Tattoo PR Dashboard
-          <span class="refresh-ring" role="status" aria-live="polite" aria-label="下次更新倒數">
-            <svg viewBox="0 0 40 40" aria-hidden="true">
-              <circle class="refresh-ring-track" cx="20" cy="20" r="16" />
-              <circle
-                class="refresh-ring-progress"
-                cx="20"
-                cy="20"
-                r="16"
-                :style="{ strokeDashoffset: `${refreshRingDashOffset}px` }"
-              />
-            </svg>
-            <span class="refresh-ring-number">{{ refreshCountdownSec }}</span>
-          </span>
-        </h1>
-        <p>Open PR snapshots from <code>NTUT-NPC/tattoo</code> · refresh every {{ refreshIntervalSec }}s</p>
+      <div class="header-main">
+        <h1>Tattoo PR Dashboard</h1>
+        <p><code>NTUT-NPC/tattoo</code> · {{ refreshIntervalSec }}s refresh</p>
       </div>
-      <div class="meta">
+      <div class="meta" role="status" aria-live="polite">
+        <span class="refresh-ring" aria-label="下次更新倒數">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <circle class="refresh-ring-track" cx="20" cy="20" r="16" />
+            <circle
+              class="refresh-ring-progress"
+              cx="20"
+              cy="20"
+              r="16"
+              :style="{ strokeDashoffset: `${refreshRingDashOffset}px` }"
+            />
+          </svg>
+          <span class="refresh-ring-number">{{ refreshCountdownSec }}</span>
+        </span>
+        <span :class="['chip', isUpdating ? 'updating' : 'ok']">{{ isUpdating ? '更新中' : '已同步' }}</span>
+        <span class="token-state" :class="{ active: hasTokenSaved }">
+          {{ hasTokenSaved ? 'Token ON' : '匿名' }}
+        </span>
+        <span class="time">{{ lastUpdatedText }}</span>
         <button
           type="button"
           class="settings-btn"
@@ -29,11 +32,6 @@
         >
           ⚙
         </button>
-        <span class="token-state" :class="{ active: hasTokenSaved }">
-          {{ hasTokenSaved ? 'Token 已啟用' : '匿名模式' }}
-        </span>
-        <span :class="['chip', isUpdating ? 'updating' : 'ok']">{{ isUpdating ? '更新中' : '已同步' }}</span>
-        <span class="time">{{ lastUpdatedText }}</span>
       </div>
     </header>
 
@@ -514,15 +512,18 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard { max-width: 1200px; margin: 0 auto; padding: .75rem; }
-.header { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:1rem; }
-.header h1 { margin:0; color:#f8fafc; display: flex; align-items: baseline; gap: .55rem; flex-wrap: wrap; }
+.header-main { min-width: 0; }
+.header { display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; }
+.header-main h1 { margin:0; color:#f8fafc; font-size: 1.45rem; }
+.header-main p { margin:.2rem 0 0; color:#94a3b8; font-size: .9rem; }
 .refresh-ring {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2rem;
+  height: 2rem;
   display: inline-grid;
   place-items: center;
   position: relative;
   color: #bfdbfe;
+  flex: 0 0 auto;
 }
 
 .refresh-ring svg {
@@ -548,20 +549,19 @@ onUnmounted(() => {
 
 .refresh-ring-number {
   position: absolute;
-  font-size: .72rem;
+  font-size: .68rem;
   font-weight: 700;
   line-height: 1;
 }
-.header p { margin:.3rem 0 0; color:#94a3b8; }
 code { color:#93c5fd; }
-.meta { display:flex; flex-direction:column; align-items:flex-end; gap:.35rem; position: relative; }
+.meta { display:flex; flex-wrap: wrap; justify-content: flex-end; align-items:center; gap:.4rem; }
 .settings-btn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; cursor: pointer; font-size: 1rem; line-height: 1; }
-.token-state { font-size: .75rem; color: #94a3b8; }
+.token-state { font-size: .72rem; color: #94a3b8; background: #0f172a; border: 1px solid #334155; padding: .2rem .45rem; border-radius: 999px; }
 .token-state.active { color: #86efac; }
 .chip { font-weight:700; border-radius:999px; padding:.2rem .6rem; font-size:.8rem; }
 .chip.ok { background:#052e16; color:#86efac; }
 .chip.updating { background:#172554; color:#93c5fd; }
-.time { color:#cbd5e1; font-size:.82rem; }
+.time { color:#cbd5e1; font-size:.78rem; padding: .2rem .45rem; background: #0f172a; border: 1px solid #334155; border-radius: 999px; }
 .token-panel { margin: -0.3rem 0 .9rem auto; width: min(560px, 100%); border: 1px solid #2b3f72; border-radius: 10px; background: #111a33; padding: .7rem; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
@@ -639,8 +639,16 @@ code { color:#93c5fd; }
 }
 
 @media (max-width: 640px) {
-  .header { flex-direction:column; }
-  .meta { align-items:flex-start; }
+  .dashboard { padding: .55rem; }
+  .header { flex-direction:column; align-items:stretch; gap: .45rem; margin-bottom: .7rem; }
+  .header-main h1 { font-size: 1.08rem; line-height: 1.2; }
+  .header-main p { display: none; }
+  .meta { justify-content:flex-start; gap: .3rem; }
+  .meta .time,
+  .meta .token-state { display: none; }
+  .refresh-ring { width: 1.7rem; height: 1.7rem; }
+  .chip { font-size: .72rem; padding: .16rem .42rem; }
+  .settings-btn { width: 28px; height: 28px; }
   .token-panel { margin-left: 0; }
 }
 </style>
