@@ -89,7 +89,9 @@
           @click.self="closePrDetails"
         >
           <div class="detail-card-wrap">
-            <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
+            <div class="detail-toolbar">
+              <button type="button" class="close-btn" aria-label="關閉詳細資訊" @click="closePrDetails">✕</button>
+            </div>
             <PrCard :pr="selectedPr" cinematic :show-effect="false" />
           </div>
         </section>
@@ -372,8 +374,15 @@ code { color:#93c5fd; }
   width: min(95vw, 1120px);
   max-height: 92vh;
   position: relative;
+  display: grid;
+  gap: .45rem;
   transform-origin: center;
   z-index: 1;
+}
+
+.detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .detail-modal-enter-active,
@@ -416,10 +425,7 @@ code { color:#93c5fd; }
 }
 
 .close-btn {
-  position: absolute;
-  top: .6rem;
-  right: .6rem;
-  z-index: 2;
+  z-index: 1;
   width: 34px;
   height: 34px;
   border-radius: 999px;
