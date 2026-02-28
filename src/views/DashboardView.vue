@@ -369,7 +369,20 @@ code { color:#93c5fd; }
 .detail-card-wrap {
   width: min(95vw, 1120px);
   max-height: 92vh;
-  position: relative;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  z-index: 1;
+}
+
+.showcase-card.enter {
+  animation: card-drop-in .9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.showcase-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 2;
 }
 
 .close-btn {
