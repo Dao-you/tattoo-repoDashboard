@@ -102,6 +102,10 @@
     </section>
 
     <div v-if="cinematic && showEffect" class="cinematic-overlay" aria-live="polite">
+      <div v-if="effect === 'ci_complete'" class="cinematic-confetti" aria-hidden="true">
+        <span v-for="item in confettiStyles" :key="item.key" class="confetti" :style="item.style" />
+      </div>
+
       <p v-if="effect === 'new_pr'" class="effect-title">🚀 New PR arrived</p>
       <p v-else-if="effect === 'ci_complete'" class="effect-title">CI 全部完成</p>
       <p v-else-if="effect === 'merged'" class="effect-title">🔀 Merged to mainline</p>
@@ -153,6 +157,14 @@ const props = withDefaults(
 );
 
 const { pr, activityDisplayMode } = toRefs(props);
+const confettiStyles = Array.from({ length: 18 }, (_, index) => ({
+  key: index,
+  style: {
+    left: `${(index / 18) * 100}%`,
+    animationDelay: `${((index % 6) * 0.1).toFixed(2)}s`,
+    animationDuration: `${(1.2 + (index % 5) * 0.2).toFixed(2)}s`,
+  },
+}));
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -343,6 +355,7 @@ const statusClass = computed(() => {
 }
 
 .cinematic-overlay {
+  position: relative;
   margin-top: 0;
   border-radius: 12px;
   border: 1px solid #2b3f72;
@@ -350,6 +363,7 @@ const statusClass = computed(() => {
   padding: .8rem;
   display: grid;
   gap: .5rem;
+  overflow: hidden;
 }
 
 .pr-card.cinematic .cinematic-overlay {
@@ -357,6 +371,8 @@ const statusClass = computed(() => {
 }
 
 .effect-title {
+  position: relative;
+  z-index: 1;
   margin: 0;
   color: #dbeafe;
   font-weight: 700;
@@ -364,7 +380,35 @@ const statusClass = computed(() => {
   font-size: clamp(1.15rem, 1rem + 1vw, 1.9rem);
 }
 
-.ci-result-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+.ci-result-list {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.cinematic-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.confetti {
+  --size: 10px;
+  position: absolute;
+  bottom: -1rem;
+  width: var(--size);
+  height: calc(var(--size) * 1.8);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fbbf24, #f43f5e);
+  animation-name: confetti-cannon;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+
+.confetti:nth-child(2n) { background: linear-gradient(180deg, #60a5fa, #34d399); }
+.confetti:nth-child(3n) { background: linear-gradient(180deg, #a78bfa, #38bdf8); }
 
 .ci-result {
   font-size: clamp(1.8rem, 1.2rem + 1.8vw, 3rem);
@@ -387,6 +431,12 @@ const statusClass = computed(() => {
 @keyframes pop {
   from { opacity: 0; transform: scale(.5) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes confetti-cannon {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-42vh) translateX(48px) rotate(380deg); opacity: 0; }
 }
 
 @media (max-width: 640px) {
