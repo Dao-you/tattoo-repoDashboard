@@ -1,105 +1,157 @@
 # Tattoo Repo Dashboard
 
-一個以 Vue + Vite 製作的純前端儀表板，用來監控 `NTUT-NPC/tattoo` 的 Pull Request 狀態，適合多人協作時快速掌握進度。
+> 這是一個 **vibe coding 專案**：以快速迭代、視覺回饋優先、持續小步調整的方式打造的 Vue 3 前端儀表板。
 
-## 我如何先確認 tattoo 專案的流程
+一個用來監控 `NTUT-NPC/tattoo` 開啟中 Pull Request 狀態的純前端 dashboard，部署目標為 GitHub Pages。
 
-在實作前，先直接讀取目標專案公開資訊，確認 BOT 留言格式與 CI workflow：
+## 目前專案現況（2026-03）
 
-- 透過 GitHub REST API 查詢 open PR 與留言，確認 `github-actions[bot]` 留言中固定存在 `**Build Number:** <number>`。
-- 同時有 `rileychh-dokploy-riley-ntut-npc[bot]` 的 preview 留言可作為狀態補充。
-- 讀取 `.github/workflows/pr-preview.yaml`，確認 build number 由 `manage-build-number` action 管理，並在 PR comment 內更新。
-- 讀取 `.github/workflows/analyze.yaml`、`release-preview.yaml` 等，確認 CI 來源主要來自 check-runs/status API。
+- 技術棧：Vue 3 + Vite + TypeScript（`<script setup lang="ts">`）。
+- 部署型態：純前端（無 server runtime），由 GitHub Actions 自動建置並部署 GitHub Pages。
+- 主要資料來源：GitHub REST API（PR、commits、issue comments、review comments、reviews、check-runs）。
+- 目前 UI 方向：高密度卡片資訊 + 全螢幕狀態展示動畫 + 可配置設定面板。
 
-### 驗證指令（你可重跑）
+## 功能總覽
 
-```bash
-curl -s "https://api.github.com/repos/NTUT-NPC/tattoo/pulls?state=open&sort=updated&direction=desc&per_page=10" | jq -r '.[] | "#\(.number) \(.title)"'
-curl -s "https://api.github.com/repos/NTUT-NPC/tattoo/issues/<PR_NUMBER>/comments?per_page=50" | jq -r '.[] | select((.user.login|ascii_downcase|contains("bot")) or (.user.type=="Bot")) | .user.login, .body'
-curl -sL "https://raw.githubusercontent.com/NTUT-NPC/tattoo/main/.github/workflows/pr-preview.yaml"
-```
+### 儀表板核心
 
-## 主要功能
+- 依更新時間排序並顯示 open PR 清單（Draft 會往後排）。
+- PR 卡片包含：
+  - PR 編號、標題、作者
+  - 最新 commit / 最新 comment（可切換顯示模式）
+  - linked issue（由標題/內文解析）
+  - CI badges（只保留 GitHub Actions workflow check）
+  - review 狀態（draft / pending review / approved / changes requested / ci failed）
+  - approved reviewer 計數
+- 30 秒預設輪詢更新（可在設定調整 5~300 秒）。
+- Header 顯示同步狀態、更新倒數環、最後更新時間。
 
-- PR 卡片式儀表板（依最新更新時間排序）。
-- 卡片顯示：
-  - 醒目的 PR 編號
-  - PR 標題
-  - 最新 commit（作者頭貼、ID、訊息）
-  - CI Build Number（從 PR issue comments 解析）
-  - 最新留言（作者頭貼、時間、內容摘要）
-  - 關聯 issue（從標題/描述關鍵字解析）
-  - 最多 4 個 CI 狀態圖示（check-runs + commit status）
-  - 手機優先緊湊卡片 + 可展開細節（預設先看重點）
-  - linked issue 與 commit/comment 同膠囊樣式顯示，便於快速掃描
-- 自動每 30 秒更新。
-- 響應式排版（桌機/手機都可讀）。
+### 互動與設定
+
+- 點擊 PR 卡片可開啟全螢幕詳細卡。
+- 有更新事件時可顯示全螢幕動畫/狀態提示與禮砲效果。
+- 設定面板採全螢幕 modal card，可設定：
+  - GitHub API Token（localStorage）
+  - 更新頻率
+  - 動態顯示模式（分開顯示 / 只顯示最新動態）
+  - 時間顯示模式（智慧時間 / 完整時間）
+  - 狀態動畫自動關閉秒數
+
+### GitHub Pages base path
+
+`vite.config.ts` 目前支援兩種路徑：
+
+1. 預設 Pages：`/<repo>/`
+2. 自訂網域根路徑：透過 `VITE_BASE_PATH=/`
 
 ## 專案結構
 
-- `src/views/DashboardView.vue`: 儀表板頁面、輪詢、錯誤處理。
-- `src/components/PrCard.vue`: PR 卡片。
-- `src/components/CiStatusBadges.vue`: CI 狀態小圖示。
-- `src/services/githubApi.ts`: GitHub API 串接與資料整形。
-- `src/utils/parsers.ts`: Build number / linked issue 解析與文字截斷。
+- `src/views/DashboardView.vue`：主畫面資料流、輪詢、設定面板、全螢幕卡片控制。
+- `src/components/PrCard.vue`：PR 卡片/詳細內容與狀態動畫。
+- `src/components/CiStatusBadges.vue`：CI badge 呈現。
+- `src/services/githubApi.ts`：GitHub API 呼叫、資料整形、token 儲存與驗證。
+- `src/utils/parsers.ts`：build number / linked issue 解析與文字工具。
+- `.github/workflows/deploy-pages.yml`：Pages 部署流程。
 
-## 本地執行
+## 本地開發
 
 ```bash
 npm install
 npm run dev
 ```
 
+## 建置與部署檢查
 
-## 設定個人 GitHub API Token（建議）
+```bash
+npm run build
+```
 
-為了降低 GitHub API rate limit（匿名約 60 req/hr / IP），現在 dashboard 支援在前端輸入 token，並儲存在瀏覽器 localStorage（`github_api_token`）供後續請求使用。
+GitHub Actions 使用：
 
-### 在畫面上設定 token
+- `npm ci`
+- `npm run build`
+- `actions/upload-pages-artifact`
+- `actions/deploy-pages`
 
-1. 開啟 dashboard。
-2. 點擊右上角齒輪（⚙）展開設定面板（平常收合，不佔空間）。
-3. 貼上 token 並點擊「儲存 Token」。
-4. 成功後，後續 API 請求會自動帶上 `Authorization: Bearer <token>`。
-5. 若要回到匿名模式，可按「清除」。
+## merged PR 歷史總覽（依 repo merge commit）
 
-> 安全提醒：
-> - token 僅儲存在 localStorage，不會像 cookie 一樣自動隨 HTTP 請求送出。
-> - localStorage 仍屬前端可讀資料：請只在受信任裝置使用，並避免安裝不明來源擴充套件。
-> - 建議建立「只讀、最小權限、短效」token，不要使用高權限長效 token。
-> - 介面不會回填已儲存 token 原文；若要更新請重新貼上。
+> 以下依目前 git log 中的 `Merge pull request #...` 彙整。
 
-### 如何取得 GitHub API Token
+### 初始建立與基礎功能
 
-你可以用 Fine-grained personal access token（推薦）或 Classic token。
+- #3, #4, #5, #6, #7, #8, #9, #10, #11, #12
+- 重點：建立 dashboard、串接 GitHub API、加入輪詢/錯誤處理、token 輸入、CI icon 互動與全螢幕更新動畫。
 
-#### 方案 A：Fine-grained token（推薦）
+### 資訊密度與顯示優化
 
-1. 登入 GitHub，進入 `Settings` → `Developer settings` → `Personal access tokens` → `Fine-grained tokens`。
-2. 點「Generate new token」。
-3. 參考下列建議設定：
-   - **Resource owner**：你的帳號或所屬組織。
-   - **Repository access**：
-     - 若只查 `NTUT-NPC/tattoo`，可選 `Only select repositories` 並勾選該 repo。
-   - **Permissions**（讀取 dashboard 所需最小範圍）：
-     - Pull requests: **Read-only**
-     - Issues: **Read-only**
-     - Commit statuses: **Read-only**
-     - Actions/Checks（若介面有提供 Checks 權限）：**Read-only**
-4. 設定到期日（建議短效，例如 30~90 天）。
-5. 建立後立即複製 token（離開頁面後通常無法再完整查看）。
+- #13, #14, #15, #16, #17, #18, #19, #20, #22, #23, #24, #25
+- 重點：卡片尺寸、倒數/時間、膠囊狀態、動畫顯示邏輯、owner 與 approved 顯示、CI workflow 過濾。
 
-#### 方案 B：Classic token
+### 動畫與全螢幕體驗強化
+
+- #26, #27, #28, #29, #30, #31, #32, #33, #34, #35, #36
+- 重點：header 精簡、hover 動畫、slide in/out、logo 與 favicon、最新活動顯示模式、close button/重疊修正、confetti 效果。
+
+### 近期期（目前狀態）
+
+- #37, #38, #39, #40, #41, #42, #44, #45, #46
+- 重點：meta controls 重設計、背景 blur 過渡、PR card hover、全螢幕關閉行為、智慧時間顯示切換、設定面板全螢幕化與 auto-close 行為修正。
+
+## Token 使用提醒
+
+- Token 只存在 localStorage（key: `github_api_token`）。
+- 建議使用最小權限、短效、只讀 token。
+- 若不需要可在設定中清除回匿名模式。
+
+## 完整 GitHub Token 申請教學（建議先看）
+
+> 目標：讓 dashboard 在前端請求 GitHub API 時，降低匿名 rate limit 影響。
+
+### 為什麼需要 token？
+
+- 匿名 API 請求通常很快就會碰到速率限制（尤其多人同網路或高頻刷新時）。
+- 設定 token 後，dashboard 會自動在請求加上 `Authorization: Bearer <token>`。
+- 本專案只需要**讀取公開資料**，不需要寫入權限。
+
+### 方案 A（推薦）：Fine-grained Personal Access Token
+
+1. 登入 GitHub。
+2. 進入 `Settings` → `Developer settings` → `Personal access tokens` → `Fine-grained tokens`。
+3. 點 `Generate new token`。
+4. 設定基本資訊：
+   - **Token name**：例如 `tattoo-dashboard-readonly`
+   - **Expiration**：建議 30~90 天（短效）
+   - **Resource owner**：你的帳號或組織
+5. 設定 repository 存取範圍：
+   - 若僅監看 `NTUT-NPC/tattoo`：選 `Only select repositories` 並勾選該 repo
+   - 若要看多個 repo：再依需求增加，但仍維持最小範圍
+6. 設定權限（只讀最小化）：
+   - `Pull requests` → **Read-only**
+   - `Issues` → **Read-only**
+   - `Commit statuses` → **Read-only**
+   - `Checks` / `Actions`（若畫面有）→ **Read-only**
+7. 送出並建立 token。
+8. **立即複製 token**（離開頁面後通常無法再次完整顯示）。
+
+### 方案 B：Classic Personal Access Token（備用）
 
 1. 進入 `Settings` → `Developer settings` → `Personal access tokens` → `Tokens (classic)`。
-2. 點「Generate new token (classic)」。
-3. 一般只需要勾選 `public_repo`（若僅查公開倉庫資料）。
-4. 設定到期日並建立 token。
-5. 複製 token 後貼回 dashboard。
+2. 點 `Generate new token (classic)`。
+3. 設定名稱與期限（建議短效）。
+4. 權限通常勾 `public_repo` 即可（僅公開 repo 讀取情境）。
+5. 建立後複製 token。
 
-### 驗證 token 是否可用
+### 在 dashboard 中套用 token
 
-可先用以下指令測試（把 `<TOKEN>` 換成你的值）：
+1. 開啟頁面，點右上角 `⚙`。
+2. 在 `GitHub API Token（選填）` 貼上 token。
+3. 點擊儲存按鈕。
+4. 看到成功訊息後，後續 API 會自動帶 token。
+5. 若要回匿名模式，按清除即可。
+
+### 驗證 token 是否成功
+
+把 `<TOKEN>` 換成你剛建立的值：
 
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
@@ -107,24 +159,24 @@ curl -H "Authorization: Bearer <TOKEN>" \
   https://api.github.com/rate_limit
 ```
 
-若回傳中的 `resources.core.remaining` 顯著高於匿名請求，代表 token 生效。
+檢查回傳中的 `resources.core.remaining`：
+- 若顯著高於匿名請求，表示 token 生效。
+- 若出現 401/403，通常是 token 過期、權限不足、或貼錯值。
 
-## GitHub Pages 部署
+### 常見錯誤排查
 
-已提供 `.github/workflows/deploy-pages.yml`：
+- **貼上後仍被限流**：確認 token 沒過期、沒有前後空白、以及確實儲存成功。
+- **有 token 但資料不完整**：檢查是否漏開 `Pull requests` / `Issues` / `Commit statuses` / `Checks` 讀取權限。
+- **公司網路限制**：可能被代理或防火牆影響 API 請求，先用 `curl` 測試。
 
-- push 到預設分支或手動觸發會自動 build + deploy。
-- 會依 `GITHUB_REPOSITORY` 自動推導 Vite `base`（`/<repo>/`）。
-- 若你使用自訂網域根路徑，設定 repo variable：`VITE_BASE_PATH=/`。
+### 安全建議
 
-## API 策略說明
+- 不要把 token commit 到 repo 或貼到公開頻道。
+- 使用「最小權限 + 短效」策略。
+- 只在信任裝置輸入 token，定期輪替。
+- 若懷疑外洩，立即在 GitHub 撤銷 token 並重建。
 
-由於需求是「純前端直接打 GitHub 公開資料」，採用 REST API：
+## 注意事項
 
-1. 拉 open PR 清單（已是 updated desc）。
-2. 每個 PR 拉 commits / issue comments / review comments。
-3. 以最新 commit SHA 查 `check-runs` + `status`。
-4. 從 comments 抓最新可解析的 Build Number。
-
-> 注意：未帶 token 的 GitHub API 有 rate limit（每 IP 約 60 req/hr）。
-> 若 PR 很多、更新很頻繁，可能在尖峰時段被限流。這是公開純前端模式的先天限制。
+- 這個專案刻意維持純前端，不提供後端代理。
+- 未帶 token 時會受到 GitHub API 匿名 rate limit 限制。
