@@ -81,25 +81,17 @@ function statusClass(item: CiItem) {
 .ci-item {
   display:inline-flex;
   align-items:center;
-  gap:0;
+  gap:.32rem;
   flex:0 0 auto;
-  width:1.45rem;
-  max-width:min(12rem, 100%);
+  min-width:1.45rem;
+  max-width:100%;
   height:1.45rem;
   border-radius:8px;
   text-decoration:none;
   background:#17203d;
   border:1px solid #30406f;
-  overflow:hidden;
   white-space:nowrap;
-  padding:0;
-  transition:width .28s cubic-bezier(.22, 1, .36, 1), background-color .2s ease;
-}
-
-.ci-item:hover,
-.ci-item:focus-visible {
-  width:min(12rem, 100%);
-  background:#1f2b50;
+  padding:0 .45rem 0 0;
 }
 
 .ci-icon {
@@ -123,17 +115,8 @@ function statusClass(item: CiItem) {
 
 .ci-name {
   display:inline-block;
-  margin-left:.05rem;
-  padding-right:.45rem;
-  opacity:0;
-  transform:translateX(-.65rem);
-  transition:opacity .2s ease, transform .28s cubic-bezier(.22, 1, .36, 1);
-}
-
-.ci-item:hover .ci-name,
-.ci-item:focus-visible .ci-name {
-  opacity:1;
-  transform:translateX(0);
+  font-size:.74rem;
+  line-height:1;
 }
 .empty { font-size:.78rem; color:#94a3b8; }
 </style>
