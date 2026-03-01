@@ -194,7 +194,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import PrCard from '../components/PrCard.vue';
-import { fetchPrCards, hasSavedGithubToken, saveGithubToken, validateGithubToken, type PullRequestCard } from '../services/githubApi.ts';
+import {
+  fetchPrCards,
+  fetchPullRequestMergeState,
+  hasSavedGithubToken,
+  saveGithubToken,
+  validateGithubToken,
+  type PullRequestCard,
+} from '../services/githubApi.ts';
 
 const REFRESH_INTERVAL_MS = 30_000;
 const DEFAULT_REFRESH_INTERVAL_SEC = REFRESH_INTERVAL_MS / 1000;
@@ -239,6 +246,7 @@ let nextRefreshAt: number | null = null;
 
 let refreshInFlight: Promise<void> | null = null;
 let refreshQueued = false;
+let isFirstRefresh = true;
 
 const lastUpdatedText = computed(() =>
   lastUpdatedAt.value ? `最後更新：${lastUpdatedAt.value.toLocaleString()}` : '尚未更新',
@@ -419,6 +427,15 @@ async function executeRefreshCycle() {
     const latestPrs = await fetchPrCards();
     prs.value = latestPrs;
     notifyPrStatusChanges(previousPrs, latestPrs);
+
+    if (!isFirstRefresh) {
+      const animationEvent = await findStatusAnimationEvent(previousPrs, latestPrs);
+      if (animationEvent) {
+        triggerPrStatusAnimation(animationEvent);
+      }
+    }
+
+    isFirstRefresh = false;
     lastUpdatedAt.value = new Date();
     error.value = '';
 
@@ -530,6 +547,89 @@ function buildCiSummary(pr: PullRequestCard): Array<{ name: string; result: 'suc
   });
 }
 
+function areAllCiStatesCompleted(pr: PullRequestCard) {
+  if (!pr.ciStates.length) return false;
+
+  return pr.ciStates.every((item) => {
+    const status = (item.status ?? '').toLowerCase();
+    const conclusion = (item.conclusion ?? '').toLowerCase();
+    return status === 'completed' || Boolean(conclusion);
+  });
+}
+
+function triggerPrStatusAnimation(params: {
+  pr: PullRequestCard;
+  effect: 'new_pr' | 'ci_complete' | 'merged';
+  message: string;
+  ciSummary?: Array<{ name: string; result: 'success' | 'failure' }>;
+}) {
+  if (previewCloseTimer) clearTimeout(previewCloseTimer);
+
+  showTokenPanel.value = false;
+  selectedPr.value = {
+    ...params.pr,
+    updatedAt: new Date().toISOString(),
+  };
+  detailEffect.value = params.effect;
+  detailCiSummary.value = params.ciSummary ?? [];
+  detailShowEffect.value = true;
+  tokenMessage.value = params.message;
+
+  previewCloseTimer = setTimeout(() => {
+    closePrDetails();
+    previewCloseTimer = null;
+  }, statusAnimationCloseDelaySec.value * 1000);
+}
+
+async function findStatusAnimationEvent(previousPrs: PullRequestCard[], currentPrs: PullRequestCard[]) {
+  if (!previousPrs.length || !currentPrs.length) return null;
+
+  const previousById = new Map(previousPrs.map((pr) => [pr.id, pr]));
+
+  const newPr = currentPrs.find((pr) => !previousById.has(pr.id));
+  if (newPr) {
+    return {
+      pr: newPr,
+      effect: 'new_pr' as const,
+      message: `偵測到新 PR #${newPr.number}，已觸發全螢幕動畫。`,
+    };
+  }
+
+  for (const pr of currentPrs) {
+    const previous = previousById.get(pr.id);
+    if (!previous) continue;
+
+    if (!areAllCiStatesCompleted(previous) && areAllCiStatesCompleted(pr)) {
+      return {
+        pr,
+        effect: 'ci_complete' as const,
+        ciSummary: buildCiSummary(pr),
+        message: `PR #${pr.number} 的 CI 全部完成，已觸發全螢幕動畫。`,
+      };
+    }
+  }
+
+  const currentIds = new Set(currentPrs.map((pr) => pr.id));
+  const removedPrs = previousPrs.filter((pr) => !currentIds.has(pr.id));
+
+  for (const removedPr of removedPrs) {
+    try {
+      const mergeState = await fetchPullRequestMergeState(removedPr.number);
+      if (mergeState.merged) {
+        return {
+          pr: removedPr,
+          effect: 'merged' as const,
+          message: `PR #${removedPr.number} 已合併，已觸發全螢幕動畫。`,
+        };
+      }
+    } catch (mergeError) {
+      console.warn(`failed to check merge state for PR #${removedPr.number}`, mergeError);
+    }
+  }
+
+  return null;
+}
+
 function previewLatestPrStatusAnimation() {
   const latestPr = prs.value[0];
   if (!latestPr) {
@@ -537,22 +637,12 @@ function previewLatestPrStatusAnimation() {
     return;
   }
 
-  if (previewCloseTimer) clearTimeout(previewCloseTimer);
-
-  showTokenPanel.value = false;
-  selectedPr.value = {
-    ...latestPr,
-    updatedAt: new Date().toISOString(),
-  };
-  detailEffect.value = 'ci_complete';
-  detailCiSummary.value = buildCiSummary(latestPr);
-  detailShowEffect.value = true;
-  tokenMessage.value = `已預覽 PR #${latestPr.number} 狀態更新動畫。`;
-
-  previewCloseTimer = setTimeout(() => {
-    closePrDetails();
-    previewCloseTimer = null;
-  }, statusAnimationCloseDelaySec.value * 1000);
+  triggerPrStatusAnimation({
+    pr: latestPr,
+    effect: 'ci_complete',
+    ciSummary: buildCiSummary(latestPr),
+    message: `已預覽 PR #${latestPr.number} 狀態更新動畫。`,
+  });
 }
 
 function applyStatusAnimationCloseDelay() {
