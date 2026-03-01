@@ -419,6 +419,7 @@ function previewLatestPrStatusAnimation() {
 
   if (previewCloseTimer) clearTimeout(previewCloseTimer);
 
+  showTokenPanel.value = false;
   selectedPr.value = {
     ...latestPr,
     updatedAt: new Date().toISOString(),
