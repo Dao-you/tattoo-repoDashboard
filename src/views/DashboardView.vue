@@ -112,6 +112,13 @@
                 <button type="button" class="secondary" @click="clearToken">清除</button>
               </div>
               <p class="token-hint">{{ tokenMessage }}</p>
+              <p class="token-hint">
+                不知道怎麼建立 Token？可參考
+                <a href="https://github.com/NTUT-NPC/tattoo-repoDashboard#%E8%A8%AD%E5%AE%9A%E5%80%8B%E4%BA%BA-github-api-token%E5%BB%BA%E8%AD%B0" target="_blank" rel="noreferrer noopener">
+                  README 教學
+                </a>
+                。
+              </p>
 
               <label class="token-label">動畫預覽</label>
               <div class="token-controls">
@@ -131,6 +138,12 @@
               </div>
               <p class="token-hint">可設定 {{ MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC }} - {{ MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒（預設 {{ DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC }} 秒）。</p>
               <p class="token-hint">使用目前最新 PR 模擬一次狀態更新動畫。</p>
+              <p class="token-hint">
+                專案 Repo：
+                <a href="https://github.com/NTUT-NPC/tattoo-repoDashboard" target="_blank" rel="noreferrer noopener">
+                  github.com/NTUT-NPC/tattoo-repoDashboard
+                </a>
+              </p>
             </div>
           </div>
         </section>
