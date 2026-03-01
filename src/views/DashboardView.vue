@@ -75,6 +75,22 @@
               </div>
               <p class="token-hint">可切換為僅顯示「最新動態（提交或留言）」。</p>
 
+              <label class="token-label">桌面通知</label>
+              <div class="token-controls refresh-controls notification-controls">
+                <label class="toggle-control" for="desktop-notification-enabled">
+                  <input
+                    id="desktop-notification-enabled"
+                    v-model="desktopNotificationEnabled"
+                    type="checkbox"
+                    @change="applyDesktopNotificationSetting"
+                  />
+                  <span>啟用 PR 狀態變更桌面通知</span>
+                </label>
+                <button type="button" class="secondary" @click="requestDesktopNotificationPermission">請求通知權限</button>
+              </div>
+              <p class="token-hint">權限狀態：{{ desktopNotificationPermissionText }}</p>
+              <p class="token-hint">當 PR 的 review/CI 狀態變更時，會發送桌面通知。</p>
+
               <label for="date-display-mode" class="token-label">更新時間顯示</label>
               <div class="token-controls refresh-controls">
                 <select id="date-display-mode" v-model="dateDisplayMode" @change="applyDateDisplayMode">
@@ -187,6 +203,7 @@ const MAX_REFRESH_INTERVAL_SEC = 300;
 const REFRESH_INTERVAL_STORAGE_KEY = 'tattoo-dashboard-refresh-interval-sec';
 const ACTIVITY_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-activity-display-mode';
 const DATE_DISPLAY_MODE_STORAGE_KEY = 'tattoo-dashboard-date-display-mode';
+const DESKTOP_NOTIFICATION_STORAGE_KEY = 'tattoo-dashboard-desktop-notification-enabled';
 const DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC = 8;
 const MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC = 3;
 const MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC = 20;
@@ -211,6 +228,7 @@ const statusAnimationCloseDelaySec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SE
 const statusAnimationCloseDelayInputSec = ref(DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC);
 const activityDisplayMode = ref<ActivityDisplayMode>('separate');
 const dateDisplayMode = ref<DateDisplayMode>('smart');
+const desktopNotificationEnabled = ref(false);
 const detailEffect = ref<'new_pr' | 'ci_complete' | 'merged'>('ci_complete');
 const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' }>>([]);
 const detailShowEffect = ref(false);
@@ -233,6 +251,13 @@ const refreshRingDashOffset = computed(() => {
 
   return circumference * (1 - progress);
 });
+const desktopNotificationPermissionText = computed(() => {
+  if (!('Notification' in window)) return '目前瀏覽器不支援通知 API';
+
+  if (Notification.permission === 'granted') return '已允許';
+  if (Notification.permission === 'denied') return '已封鎖（請至瀏覽器設定開啟）';
+  return '尚未授權';
+});
 
 function readRefreshIntervalFromStorage() {
   const raw = window.localStorage.getItem(REFRESH_INTERVAL_STORAGE_KEY);
@@ -253,6 +278,10 @@ function readActivityDisplayModeFromStorage(): ActivityDisplayMode {
 function readDateDisplayModeFromStorage(): DateDisplayMode {
   const raw = window.localStorage.getItem(DATE_DISPLAY_MODE_STORAGE_KEY);
   return raw === 'full' ? 'full' : 'smart';
+}
+
+function readDesktopNotificationSettingFromStorage() {
+  return window.localStorage.getItem(DESKTOP_NOTIFICATION_STORAGE_KEY) === 'true';
 }
 
 function readStatusAnimationCloseDelayFromStorage() {
@@ -287,6 +316,81 @@ function scheduleNextRefreshCountdown() {
   refreshCountdownSec.value = refreshIntervalSec.value;
 }
 
+function getStatusSignature(pr: PullRequestCard) {
+  const ciSignature = pr.ciStates
+    .map((state) => `${state.name}:${state.status}:${state.conclusion ?? 'null'}`)
+    .join('|');
+
+  return `${pr.reviewStatus ?? 'none'}__${pr.approvedCount}__${ciSignature}`;
+}
+
+function getPrStatusDescription(pr: PullRequestCard) {
+  const ciDescription = pr.ciStates.length
+    ? pr.ciStates.map((state) => `${state.name}=${state.conclusion ?? state.status}`).join('、')
+    : '無 CI 資訊';
+
+  return `Review：${pr.reviewStatus ?? 'none'}；Approved：${pr.approvedCount}；CI：${ciDescription}`;
+}
+
+function notifyPrStatusChanges(previousPrs: PullRequestCard[], currentPrs: PullRequestCard[]) {
+  if (!desktopNotificationEnabled.value || !('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  if (!previousPrs.length) return;
+
+  const previousStatusById = new Map(previousPrs.map((pr) => [pr.id, getStatusSignature(pr)]));
+  const changedPrs = currentPrs.filter((pr) => {
+    const previousSignature = previousStatusById.get(pr.id);
+    if (!previousSignature) return false;
+    return previousSignature !== getStatusSignature(pr);
+  });
+
+  changedPrs.forEach((pr) => {
+    const notification = new Notification(`PR #${pr.number} 狀態更新`, {
+      body: getPrStatusDescription(pr),
+      icon: '/favicon.svg',
+      tag: `tattoo-pr-${pr.id}`,
+      renotify: true,
+    });
+
+    notification.onclick = () => {
+      window.open(pr.url, '_blank', 'noopener,noreferrer');
+    };
+  });
+}
+
+async function requestDesktopNotificationPermission() {
+  if (!('Notification' in window)) {
+    tokenMessage.value = '目前瀏覽器不支援桌面通知。';
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission === 'granted') {
+    tokenMessage.value = '已允許桌面通知。';
+    return;
+  }
+
+  tokenMessage.value = permission === 'denied'
+    ? '通知權限已被封鎖，請至瀏覽器設定調整。'
+    : '尚未授權桌面通知。';
+}
+
+async function applyDesktopNotificationSetting() {
+  window.localStorage.setItem(DESKTOP_NOTIFICATION_STORAGE_KEY, String(desktopNotificationEnabled.value));
+
+  if (!desktopNotificationEnabled.value) {
+    tokenMessage.value = '已關閉 PR 狀態變更桌面通知。';
+    return;
+  }
+
+  await requestDesktopNotificationPermission();
+  if ('Notification' in window && Notification.permission === 'granted') {
+    tokenMessage.value = '已開啟 PR 狀態變更桌面通知。';
+  }
+}
+
 function updateRefreshCountdown() {
   if (!nextRefreshAt) {
     refreshCountdownSec.value = refreshIntervalSec.value;
@@ -311,7 +415,10 @@ async function executeRefreshCycle() {
   isUpdating.value = true;
 
   try {
-    prs.value = await fetchPrCards();
+    const previousPrs = [...prs.value];
+    const latestPrs = await fetchPrCards();
+    prs.value = latestPrs;
+    notifyPrStatusChanges(previousPrs, latestPrs);
     lastUpdatedAt.value = new Date();
     error.value = '';
 
@@ -487,6 +594,7 @@ function applyRefreshInterval() {
 onMounted(async () => {
   activityDisplayMode.value = readActivityDisplayModeFromStorage();
   dateDisplayMode.value = readDateDisplayModeFromStorage();
+  desktopNotificationEnabled.value = readDesktopNotificationSettingFromStorage();
   refreshIntervalSec.value = readRefreshIntervalFromStorage();
   refreshIntervalInput.value = refreshIntervalSec.value;
   statusAnimationCloseDelaySec.value = readStatusAnimationCloseDelayFromStorage();
@@ -613,6 +721,21 @@ code { color:#93c5fd; }
 .token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
 .token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
 .token-hint { margin: .45rem 0 0; font-size: .8rem; color: #cbd5e1; }
+.notification-controls {
+  align-items: center;
+}
+
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: #e2e8f0;
+  font-size: .88rem;
+}
+
+.toggle-control input {
+  min-width: 1rem;
+}
 .error { border:1px solid #dc2626; color:#fecaca; background:#3f1119; border-radius:10px; padding:.6rem .8rem; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.65rem; }
 .card-slot { min-width: 0; cursor: zoom-in; }
