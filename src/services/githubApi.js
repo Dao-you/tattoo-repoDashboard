@@ -164,6 +164,13 @@ export function createGithubApiClient({
     };
   }
 
+  function isBotActor(user) {
+    const login = user?.login?.toLowerCase?.() ?? '';
+    const userType = user?.type?.toLowerCase?.() ?? '';
+
+    return userType === 'bot' || login.endsWith('[bot]');
+  }
+
   async function hydratePullRequest(pr, { includeReviewComments = false } = {}) {
     const prNumber = pr.number;
     const [commits, issueComments, reviewComments] = await Promise.all([
@@ -174,6 +181,7 @@ export function createGithubApiClient({
 
     const latestCommit = commits.at(-1) ?? null;
     const latestComment = [...issueComments, ...reviewComments]
+      .filter((comment) => !isBotActor(comment?.user))
       .sort((a, b) => new Date(a.updated_at) - new Date(b.updated_at))
       .at(-1) ?? null;
 

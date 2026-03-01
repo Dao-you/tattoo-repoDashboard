@@ -169,6 +169,13 @@ function getApprovedCount(reviews: any[]): number {
   return [...latestReviewsByAuthor.values()].filter((state) => state === 'APPROVED').length;
 }
 
+function isBotActor(user: any): boolean {
+  const login = user?.login?.toLowerCase?.() ?? '';
+  const userType = user?.type?.toLowerCase?.() ?? '';
+
+  return userType === 'bot' || login.endsWith('[bot]');
+}
+
 export async function fetchPrCards(): Promise<PullRequestCard[]> {
   const pulls = await request(
     `/repos/${OWNER}/${REPO}/pulls?state=open&sort=updated&direction=desc&per_page=${MAX_PRS}`,
@@ -195,9 +202,11 @@ export async function fetchPrCards(): Promise<PullRequestCard[]> {
           }
         : null;
 
-      const mergedComments = [...issueComments, ...reviewComments].sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      );
+      const mergedComments = [...issueComments, ...reviewComments]
+        .filter((comment) => !isBotActor(comment?.user))
+        .sort(
+          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
       const latestCommentRaw = mergedComments[0] ?? null;
       const latestComment = latestCommentRaw
         ? {
