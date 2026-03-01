@@ -120,6 +120,36 @@
                 。
               </p>
 
+              <label class="token-label">更新動畫音效</label>
+              <div class="token-controls refresh-controls sound-toggle-row">
+                <label class="checkbox-label" for="animation-sound-enabled">
+                  <input id="animation-sound-enabled" v-model="animationSoundEnabled" type="checkbox" @change="applyAnimationSoundEnabled" />
+                  觸發更新動畫時播放音效（預設關閉）
+                </label>
+              </div>
+              <p class="token-hint">可選擇內建音效，或上傳自訂音效檔（mp3 / wav / ogg）。</p>
+
+              <div class="token-controls refresh-controls">
+                <select id="animation-sound-mode" v-model="animationSoundMode" @change="applyAnimationSoundMode">
+                  <option value="default">使用內建預設音效</option>
+                  <option value="custom">使用自訂上傳音效</option>
+                </select>
+                <button type="button" class="secondary" @click="previewAnimationSound">試聽音效</button>
+              </div>
+
+              <div class="token-controls refresh-controls" v-if="animationSoundMode === 'custom'">
+                <input
+                  id="animation-sound-file"
+                  type="file"
+                  accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg"
+                  @change="handleAnimationSoundFileUpload"
+                />
+                <button type="button" class="secondary" @click="clearCustomAnimationSound">清除上傳音效</button>
+              </div>
+              <p class="token-hint" v-if="animationSoundMode === 'custom'">
+                {{ customAnimationSoundName ? `目前自訂音效：${customAnimationSoundName}` : '尚未上傳自訂音效，會改用內建音效。' }}
+              </p>
+
               <label class="token-label">動畫預覽</label>
               <div class="token-controls">
                 <button type="button" class="secondary" @click="previewLatestPrStatusAnimation">預覽最新 PR 狀態更新動畫</button>
@@ -191,9 +221,14 @@ const DEFAULT_STATUS_ANIMATION_CLOSE_DELAY_SEC = 8;
 const MIN_STATUS_ANIMATION_CLOSE_DELAY_SEC = 3;
 const MAX_STATUS_ANIMATION_CLOSE_DELAY_SEC = 20;
 const STATUS_ANIMATION_CLOSE_DELAY_STORAGE_KEY = 'tattoo-dashboard-pr-status-close-delay-sec';
+const ANIMATION_SOUND_ENABLED_STORAGE_KEY = 'tattoo-dashboard-animation-sound-enabled';
+const ANIMATION_SOUND_MODE_STORAGE_KEY = 'tattoo-dashboard-animation-sound-mode';
+const ANIMATION_SOUND_CUSTOM_DATA_STORAGE_KEY = 'tattoo-dashboard-animation-sound-custom-data';
+const ANIMATION_SOUND_CUSTOM_NAME_STORAGE_KEY = 'tattoo-dashboard-animation-sound-custom-name';
 
 type ActivityDisplayMode = 'separate' | 'latest';
 type DateDisplayMode = 'smart' | 'full';
+type AnimationSoundMode = 'default' | 'custom';
 
 const prs = ref<PullRequestCard[]>([]);
 const selectedPr = ref<PullRequestCard | null>(null);
@@ -214,6 +249,10 @@ const dateDisplayMode = ref<DateDisplayMode>('smart');
 const detailEffect = ref<'new_pr' | 'ci_complete' | 'merged'>('ci_complete');
 const detailCiSummary = ref<Array<{ name: string; result: 'success' | 'failure' }>>([]);
 const detailShowEffect = ref(false);
+const animationSoundEnabled = ref(false);
+const animationSoundMode = ref<AnimationSoundMode>('default');
+const customAnimationSoundDataUrl = ref('');
+const customAnimationSoundName = ref('');
 let timer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let previewCloseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -266,6 +305,15 @@ function readStatusAnimationCloseDelayFromStorage() {
   return parsed;
 }
 
+function readAnimationSoundEnabledFromStorage() {
+  return window.localStorage.getItem(ANIMATION_SOUND_ENABLED_STORAGE_KEY) === 'true';
+}
+
+function readAnimationSoundModeFromStorage(): AnimationSoundMode {
+  const raw = window.localStorage.getItem(ANIMATION_SOUND_MODE_STORAGE_KEY);
+  return raw === 'custom' ? 'custom' : 'default';
+}
+
 function applyActivityDisplayMode() {
   window.localStorage.setItem(ACTIVITY_DISPLAY_MODE_STORAGE_KEY, activityDisplayMode.value);
   tokenMessage.value =
@@ -280,6 +328,109 @@ function applyDateDisplayMode() {
     dateDisplayMode.value === 'full'
       ? '已切換為完整日期時間顯示。'
       : '已切換為智慧時間顯示。';
+}
+
+function applyAnimationSoundEnabled() {
+  window.localStorage.setItem(ANIMATION_SOUND_ENABLED_STORAGE_KEY, String(animationSoundEnabled.value));
+  tokenMessage.value = animationSoundEnabled.value
+    ? '已開啟更新動畫音效。'
+    : '已關閉更新動畫音效。';
+}
+
+function applyAnimationSoundMode() {
+  window.localStorage.setItem(ANIMATION_SOUND_MODE_STORAGE_KEY, animationSoundMode.value);
+  tokenMessage.value = animationSoundMode.value === 'custom'
+    ? '已切換為自訂音效模式。'
+    : '已切換為內建預設音效。';
+}
+
+function playDefaultAnimationSound() {
+  const audioContext = new window.AudioContext();
+  const gainNode = audioContext.createGain();
+  gainNode.connect(audioContext.destination);
+  gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.03);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.42);
+
+  const oscillator = audioContext.createOscillator();
+  oscillator.type = 'triangle';
+  oscillator.frequency.setValueAtTime(587.33, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContext.currentTime + 0.23);
+  oscillator.connect(gainNode);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.45);
+
+  oscillator.onended = () => {
+    void audioContext.close();
+  };
+}
+
+async function playAnimationSound() {
+  if (!animationSoundEnabled.value) return;
+
+  try {
+    if (animationSoundMode.value === 'custom' && customAnimationSoundDataUrl.value) {
+      const audio = new Audio(customAnimationSoundDataUrl.value);
+      audio.volume = 0.8;
+      await audio.play();
+      return;
+    }
+
+    playDefaultAnimationSound();
+  } catch (error) {
+    console.warn('Failed to play animation sound', error);
+    tokenMessage.value = '音效播放失敗，請確認瀏覽器已允許播放音訊。';
+  }
+}
+
+async function previewAnimationSound() {
+  if (!animationSoundEnabled.value) {
+    tokenMessage.value = '請先開啟「觸發更新動畫時播放音效」。';
+    return;
+  }
+
+  await playAnimationSound();
+  tokenMessage.value = '已播放目前設定的動畫音效。';
+}
+
+function handleAnimationSoundFileUpload(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  const file = target?.files?.[0];
+  if (!file) return;
+
+  const isAudioFile = file.type.startsWith('audio/') || /\.(mp3|wav|ogg)$/i.test(file.name);
+  if (!isAudioFile) {
+    tokenMessage.value = '請上傳 mp3 / wav / ogg 音效檔案。';
+    if (target) target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+    if (!dataUrl) {
+      tokenMessage.value = '音效檔讀取失敗，請再試一次。';
+      return;
+    }
+
+    customAnimationSoundDataUrl.value = dataUrl;
+    customAnimationSoundName.value = file.name;
+    window.localStorage.setItem(ANIMATION_SOUND_CUSTOM_DATA_STORAGE_KEY, dataUrl);
+    window.localStorage.setItem(ANIMATION_SOUND_CUSTOM_NAME_STORAGE_KEY, file.name);
+    tokenMessage.value = `已上傳自訂音效：${file.name}`;
+  };
+  reader.onerror = () => {
+    tokenMessage.value = '音效檔讀取失敗，請再試一次。';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearCustomAnimationSound() {
+  customAnimationSoundDataUrl.value = '';
+  customAnimationSoundName.value = '';
+  window.localStorage.removeItem(ANIMATION_SOUND_CUSTOM_DATA_STORAGE_KEY);
+  window.localStorage.removeItem(ANIMATION_SOUND_CUSTOM_NAME_STORAGE_KEY);
+  tokenMessage.value = '已清除自訂音效，將改用內建預設音效。';
 }
 
 function scheduleNextRefreshCountdown() {
@@ -440,6 +591,7 @@ function previewLatestPrStatusAnimation() {
   detailEffect.value = 'ci_complete';
   detailCiSummary.value = buildCiSummary(latestPr);
   detailShowEffect.value = true;
+  void playAnimationSound();
   tokenMessage.value = `已預覽 PR #${latestPr.number} 狀態更新動畫。`;
 
   previewCloseTimer = setTimeout(() => {
@@ -491,6 +643,10 @@ onMounted(async () => {
   refreshIntervalInput.value = refreshIntervalSec.value;
   statusAnimationCloseDelaySec.value = readStatusAnimationCloseDelayFromStorage();
   statusAnimationCloseDelayInputSec.value = statusAnimationCloseDelaySec.value;
+  animationSoundEnabled.value = readAnimationSoundEnabledFromStorage();
+  animationSoundMode.value = readAnimationSoundModeFromStorage();
+  customAnimationSoundDataUrl.value = window.localStorage.getItem(ANIMATION_SOUND_CUSTOM_DATA_STORAGE_KEY) ?? '';
+  customAnimationSoundName.value = window.localStorage.getItem(ANIMATION_SOUND_CUSTOM_NAME_STORAGE_KEY) ?? '';
 
   hasTokenSaved.value = hasSavedGithubToken();
   tokenMessage.value = hasTokenSaved.value
@@ -608,11 +764,21 @@ code { color:#93c5fd; }
 .token-label { display: block; margin-bottom: .45rem; color: #cbd5e1; font-size: .88rem; }
 .token-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
 .token-controls input { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
+.token-controls input[type='checkbox'] { min-width: auto; flex: 0 0 auto; accent-color: #60a5fa; }
+.token-controls input[type='file'] { padding: .38rem .45rem; }
 .token-controls select { flex: 1; min-width: 240px; background: #020617; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; padding: .45rem .55rem; }
 .refresh-controls input { max-width: 190px; min-width: 0; }
 .token-controls button { background: #1d4ed8; color: #dbeafe; border: 1px solid #2563eb; border-radius: 8px; padding: .42rem .62rem; font-weight: 600; cursor: pointer; }
 .token-controls button.secondary { background: #1e293b; color: #cbd5e1; border-color: #334155; }
 .token-hint { margin: .45rem 0 0; font-size: .8rem; color: #cbd5e1; }
+.sound-toggle-row { align-items: center; }
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  color: #dbeafe;
+  font-size: .88rem;
+}
 .error { border:1px solid #dc2626; color:#fecaca; background:#3f1119; border-radius:10px; padding:.6rem .8rem; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.65rem; }
 .card-slot { min-width: 0; cursor: zoom-in; }
